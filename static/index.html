@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trailpace</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="/static/charts.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2430;--mute:#667085;--line:#e4e7ec;--acc:#0f6b5c;--warn:#b54708}
+@media (prefers-color-scheme:dark){:root{--bg:#12161c;--card:#1b212b;--ink:#e8ecf2;--mute:#9aa4b5;--line:#2a3240;--acc:#3fbfa8;--warn:#f0a35c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,sans-serif}
+header{padding:16px 20px;border-bottom:1px solid var(--line);background:var(--card);display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0}
+nav button{background:none;border:0;color:var(--mute);font:inherit;padding:6px 12px;cursor:pointer;border-bottom:2px solid transparent}
+nav button.on{color:var(--ink);border-color:var(--acc)}
+main{max-width:1200px;margin:0 auto;padding:16px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}
+.kpi,.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.kpi b{display:block;font-size:22px}.kpi span{color:var(--mute);font-size:13px}
+.card{margin-bottom:12px;overflow-x:auto}.card h2{font-size:15px;margin:0 0 8px}.card h3{font-size:13px;margin:6px 0 0;color:var(--mute);font-weight:600}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:right;padding:5px 8px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}th{color:var(--mute);font-weight:500}
+#map{height:380px;border-radius:8px}
+.note{color:var(--warn);font-size:13px;margin:6px 0 0}
+.mute{color:var(--mute);font-size:13px}
+.good{color:var(--acc);font-weight:600}.bad{color:var(--warn);font-weight:600}
+.hide{display:none}
+.two2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:22px 16px;text-align:center;transition:.15s;line-height:1.6}
+.drop.over{border-color:var(--acc);background:rgba(15,107,92,.07)}
+.btn{display:inline-block;background:var(--acc);color:#fff;border:0;border-radius:8px;padding:6px 14px;font:inherit;font-size:13.5px;cursor:pointer}
+.btn.sec{background:none;color:var(--ink);border:1px solid var(--line)}.btn.danger{background:none;color:var(--warn);border:1px solid var(--warn)}
+.chk{display:block;margin:10px 0 2px;font-size:13px;color:var(--mute)}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:var(--acc);transition:width .3s}
+.state{margin-top:12px;font-size:13.5px}.state .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.err{color:var(--warn)}.aidrow{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:6px}
+.aidrow input{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:0}
+.two{display:grid;gap:18px;grid-template-columns:1fr}
+tr.dim td{color:var(--mute)}
+.form{display:grid;gap:12px 20px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin:8px 0}
+.form label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--mute)}
+.form input[type=text],.form input[type=datetime-local],.form input[type=number]{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.form small{color:var(--mute)}.val{float:right;color:var(--ink);font-weight:600}
+details summary{cursor:pointer;color:var(--acc);font-size:13.5px;margin:6px 0}
+.ok{color:var(--acc);font-weight:600}
+.ctl{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13.5px;margin-bottom:6px}
+.ctl label{cursor:pointer}.ctl label:has(input:disabled){opacity:.5;cursor:not-allowed}
+.legend{display:flex;align-items:center;gap:8px;margin-left:auto;color:var(--mute);font-size:12px}
+.legend i{display:inline-block;width:160px;height:10px;border-radius:5px}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Trailpace</h1>
+  <nav><button data-tab="data">Mes données</button><button data-tab="course" class="on">Parcours</button><button data-tab="profil">Profil coureur</button><button data-tab="plan">Plan de course</button></nav>
+</header>
+<main>
+<section id="data" class="hide">
+  <div class="two2">
+    <div class="card"><h2>1 · Parcours (GPX)</h2>
+      <div class="drop" id="drop_gpx"><b>Glisse ton fichier .gpx ici</b><br><span class="mute">ou</span> <label class="btn">Parcourir<input type="file" id="in_gpx" accept=".gpx" hidden></label>
+        <p class="mute">Trace avec altitude. Les waypoints « Ravitaillement » et « Barrière horaire » sont reconnus automatiquement.</p></div>
+      <div id="gpx_state"></div>
+    </div>
+    <div class="card"><h2>2 · Archive d'activités</h2>
+      <div class="drop" id="drop_arc"><b>Glisse ici ton archive .zip</b> (export Strava, Garmin, Coros…)<br><span class="mute">ou des fichiers .fit / .gpx / .tcx — </span><label class="btn">Parcourir<input type="file" id="in_arc" multiple accept=".zip,.fit,.gpx,.tcx,.gz" hidden></label>
+        <p class="mute">Il faut au moins 5 sorties de course à pied avec GPS et FC. Plus il y a de sorties (surtout des sorties longues), plus le profil est fiable.</p></div>
+      <label class="chk"><input type="checkbox" id="arc_replace"> Remplacer l'archive existante (sinon les fichiers sont ajoutés)</label>
+      <div id="arc_state"></div>
+    </div>
+  </div>
+  <div class="card"><h2>3 · Ravitaillements</h2><div id="aids_ed"><p class="mute">Dépose d'abord un GPX.</p></div></div>
+  <p class="mute">Tes fichiers restent sur ton ordinateur (dossier data/ du projet). Seule la requête de technicité OpenStreetMap et la météo contactent Internet, avec les coordonnées du parcours uniquement.</p>
+</section>
+<section id="course"><p class="mute">Chargement…</p></section>
+<section id="profil" class="hide"><p class="mute">Calcul du profil (première fois : 1 à 2 min)…</p></section>
+<section id="plan" class="hide">
+  <div class="card"><h2>Stratégie</h2>
+    <div class="form">
+      <label>Départ<input type="datetime-local" id="p_start" value="2026-12-05T23:30"></label>
+      <label>Temps cible (h:mm, facultatif)<input type="text" id="p_target" placeholder="ex. 10:30" size="6"></label>
+      <label>Effort moyen visé (% de la vitesse critique)<span class="val" id="v_pct"></span>
+        <input type="range" id="p_pct" min="40" max="95" step="1"><small id="rec_note"></small></label>
+      <label>Départ rapide ↔ progressif<span class="val" id="v_aggr"></span><input type="range" id="p_aggr" min="-100" max="100" step="10" value="0"></label>
+      <label>Effort en montée<span class="val" id="v_climb"></span><input type="range" id="p_climb" min="-10" max="10" step="1" value="0"></label>
+      <label>Prise de risque en descente<span class="val" id="v_descent"></span><input type="range" id="p_descent" min="-10" max="10" step="1" value="0"></label>
+    </div>
+    <details><summary>Hypothèses du modèle (réglables)</summary>
+    <div class="form">
+      <label>Dérive de fatigue (%/h après la 1re heure)<span class="val" id="v_drift"></span><input type="range" id="p_drift" min="0" max="4" step="0.25" value="1.5"></label>
+      <label>Sensibilité à la technicité<span class="val" id="v_tech"></span><input type="range" id="p_tech" min="0" max="2" step="0.1" value="1"></label>
+      <label>Ralentissement la nuit (pic vers 4h30)<span class="val" id="v_night"></span><input type="range" id="p_night" min="0" max="10" step="0.5" value="4"></label>
+      <label>Ralentissement par °C au-dessus de 8 °C<span class="val" id="v_heat"></span><input type="range" id="p_heat" min="0" max="1" step="0.05" value="0.4"></label>
+      <label>Effet de l'altitude (× modèle)<span class="val" id="v_alt"></span><input type="range" id="p_alt" min="0" max="2" step="0.1" value="1"></label>
+    </div>
+    <p class="mute">Altitude : −6,3 % de VO2max par 1000 m (Wehrlin &amp; Hallén 2006), par rapport à ton altitude d'entraînement. Chaleur : le ralentissement augmente progressivement avec la température (Ely et al. 2007), pente exacte à vérifier. Nuit, fatigue et % de CS selon la durée : hypothèses à calibrer, non issues d'une loi publiée.</p></details>
+    <div class="form" id="stops"></div>
+  </div>
+  <div id="plan_out"><p class="mute">Calcul…</p></div>
+</section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=(x,n=0)=>x==null?'–':Number(x).toFixed(n);
+const dark=matchMedia('(prefers-color-scheme:dark)').matches;
+const PL={paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',font:{color:dark?'#e8ecf2':'#1c2430'},margin:{l:52,r:16,t:16,b:44}};
+const GRID=dark?'#2a3240':'#e4e7ec';
+const kp=(v,l)=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+function showTab(t){document.querySelector('nav button[data-tab='+t+']').click();}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  try{sessionStorage.setItem('tab',b.dataset.tab);}catch(e){}
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  ['data','course','profil','plan'].forEach(t=>$('#'+t).classList.toggle('hide',t!==b.dataset.tab));
+  window.dispatchEvent(new Event('resize'));
+  setTimeout(()=>document.querySelectorAll('#'+b.dataset.tab+' .js-plotly-plot').forEach(g=>Plotly.Plots.resize(g)),30);
+});
+
+function initMap(c){
+  const p=c.profile, map=L.map('map');
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenStreetMap'}).addTo(map);
+  const col=g=>g>8?'#d92d20':g>3?'#f79009':g<-8?'#2e90fa':g<-3?'#84caff':'#12b76a';
+  for(let i=1;i<p.lat.length;i++)
+    L.polyline([[p.lat[i-1],p.lon[i-1]],[p.lat[i],p.lon[i]]],{color:col(p.grade[i]),weight:4}).addTo(map);
+  c.aid_stations.forEach(a=>L.circleMarker([a.lat,a.lon],{radius:6,color:'#0f6b5c',fillColor:'#fff',fillOpacity:1})
+    .bindTooltip(`${esc(a.name)}<br>km ${a.km} · ${a.alt} m${a.cutoff?' · barrière '+a.cutoff:''}`).addTo(map));
+  map.fitBounds(L.polyline(p.lat.map((v,i)=>[v,p.lon[i]])).getBounds());
+}
+function initCharts(c){ Charts.profile(c); Charts.classes(c); }
+
+async function J(u){const r=await fetch(u);if(!r.ok){const e=await r.json().catch(()=>({}));throw e.detail||('erreur '+r.status);}return r.json();}
+function missing(sel,e){const msg={no_gpx:'Dépose le GPX de ta course dans l\'onglet « Mes données ».',no_archive:'Dépose ton archive d\'activités dans l\'onglet « Mes données ».',
+  profile_pending:'Le profil est en cours de calcul… la page se mettra à jour toute seule.'}[e]||('Impossible de charger : '+esc(e));
+  document.querySelector(sel).innerHTML='<div class="card"><p>'+msg+'</p><button class="btn" onclick="showTab(\'data\')">Aller à « Mes données »</button></div>';}
+J('/api/course').then(c=>{
+  $('#title').textContent='Trailpace · '+c.name;
+  let h=`<div class="grid">${kp(fmt(c.total_km,1)+' km','Distance')}${kp('+'+fmt(c.gain),'D+ (m)')}${kp('−'+fmt(c.loss),'D− (m)')}${kp(fmt(c.alt_min)+'–'+fmt(c.alt_max),'Altitude (m)')}${kp(c.aid_stations.length,'Ravitos')}${c.technicality?kp(fmt(c.technicality.mean_factor,2),'Technicité moyenne (OSM)'):''}</div>
+  <div class="card"><div id="map"></div><p class="mute">Couleur = pente : rouge &gt;8 %, orange 3–8 %, vert ±3 %, bleu descente.</p></div>
+  <div class="card"><h2>Profil altimétrique</h2>
+  <div class="ctl"><label><input type="radio" name="pm" value="slope" checked> Pente (montée / plat / descente)</label>
+  <label><input type="radio" name="pm" value="tech"> Technicité (OSM)</label><span id="legend" class="legend"></span></div>
+  <div id="prof" style="height:300px"></div>
+  <p class="mute">D+/D− sur altitude lissée (~125 m) avec seuil de 3 m : le total peut différer de quelques % du chiffre officiel.</p></div>
+  <div class="card"><h2>Sections entre ravitaillements</h2><table><tr><th>Section</th><th>Km</th><th>Dist.</th><th>D+</th><th>D−</th><th>Alt. max</th>${c.technicality?'<th>Techn.</th>':''}<th>Barrière</th></tr>`;
+  c.sections.forEach((s,i)=>{const a=c.aid_stations[i];
+    h+=`<tr><td>${esc(s.from)} → ${esc(s.to)}</td><td>${fmt(s.start_km,1)}→${fmt(s.end_km,1)}</td><td>${fmt(s.dist_km,1)}</td><td>${fmt(s.gain)}</td><td>${fmt(s.loss)}</td><td>${fmt(s.alt_max)}</td>${c.technicality?`<td>${fmt(s.tech_mean,2)}</td>`:''}<td>${a?a.cutoff||'–':'–'}</td></tr>`;});
+  h+=`</table></div>
+  <div class="card"><h2>Répartition par pente</h2><div id="cls" style="height:260px"></div></div>
+  <div class="card"><h2>Montées et descentes significatives (&gt;100 m)</h2><table><tr><th>Type</th><th>Km</th><th>Dist.</th><th>Dénivelé</th><th>Pente moy.</th></tr>`;
+  c.climbs.forEach(x=>h+=`<tr><td>${x.type==='climb'?'Montée':'Descente'}</td><td>${fmt(x.start_km,1)}</td><td>${fmt(x.dist_km,1)} km</td><td>${fmt(x.gain)} m</td><td>${fmt(x.avg_grade,1)} %</td></tr>`);
+  h+='</table></div>';
+  if(!c.technicality) h+='<p class="note">Technicité OSM pas encore disponible (serveurs Overpass lents) : elle apparaîtra dès que le cache sera créé.</p>';
+  else h+=`<div class="card"><h2>Technicité (OSM)</h2><p class="mute">${fmt(c.technicality.matched_pct)} % de la trace rattachée à un chemin OSM. Types : ${Object.entries(c.technicality.by_highway).map(([k,v])=>k+' '+v+' %').join(', ')}. Coefficients de départ, à calibrer avec les données de l'athlète.</p></div>`;
+  $('#course').innerHTML=h;
+  initMap(c); initCharts(c);
+}).catch(e=>missing('#course',e));
+
+
+function renderCP(f){
+  const pace=Charts.pace, fmt1=(x,n=0)=>Charts.fr(x,n);
+  const durs=Object.keys(f.mean_max_gap_kmh).map(Number).sort((a,b)=>a-b), fit=[180,300,600,1200,1800];
+  const cp=f.cp_w, W=f.w_prime_j, hrcs=f.hr_at_best['1800']||f.hr_at_best['1200'];
+  document.querySelector('#cp_kpis').innerHTML=kp(fmt1(f.cs_kmh,1)+' km/h','CS · '+pace(60/f.cs_kmh*1)+'/km équiv. plat')+kp(fmt1(f.d_prime_m)+' m',"D' (réserve anaérobie)")
+    +(cp?kp(fmt1(cp)+' W','CP · puissance critique')+kp(fmt1(W/1000,1)+' kJ',"W'"):'')+kp(fmt1(hrcs)+' bpm','FC à CS (meilleur 20–30 min)')
+    +kp(fmt1(100*hrcs/f.hrmax)+' %','de la FCmax estimée ('+fmt1(f.hrmax)+')');
+  Charts.critical(f);
+  let t='<tr><th>Durée</th><th>Vitesse équiv. plat</th><th>Allure équiv.</th><th>% CS</th><th>Puissance</th><th>% CP</th><th>FC (vitesse)</th><th>FC (puissance)</th></tr>';
+  durs.forEach(d=>{const v=f.mean_max_gap_kmh[d], p=f.mean_max_power[d], inFit=fit.includes(d);
+    t+=`<tr class="${inFit?'':'dim'}"><td>${d<3600?d/60+' min':d/3600+' h'}${inFit?' ●':''}</td><td>${fmt1(v,1)} km/h</td><td>${pace(60/v)}/km</td><td>${fmt1(100*v/f.cs_kmh)} %</td><td>${p?fmt1(p)+' W':'–'}</td><td>${p&&cp?fmt1(100*p/cp)+' %':'–'}</td><td>${fmt1(f.hr_at_best[d])}</td><td>${fmt1(f.hr_at_best_power[d])}</td></tr>`;});
+  document.querySelector('#cp_table').innerHTML=t+'<tr><td colspan="8" class="mute">● = durée utilisée pour ajuster le modèle (3, 5, 10, 20, 30 min).</td></tr>';
+}
+
+J('/api/profile').then(f=>{
+  const d=f.durability||{};
+  let h=`<div class="grid">${kp(f.n_runs,'sorties running analysées')}${kp(fmt(f.span_days),"jours d'historique")}${kp(fmt(f.longest_h,1)+' h','sortie la plus longue')}${kp(fmt(f.hrmax),'FCmax estimée (bpm)')}${kp(fmt(f.cs_kmh,1)+' km/h','Vitesse critique (équiv. plat)')}${f.cp_w?kp(fmt(f.cp_w)+' W','Puissance critique'):''}</div>
+  <div class="card"><h2>Vitesse par type de pente (effort sous-maximal, 70–90 % FCmax)</h2>
+  <div id="sl" style="height:300px"></div>
+  <table><tr><th>Pente</th><th>Temps</th><th>Vitesse</th><th>Attendu*</th><th>Indice</th><th>FC</th><th>VAM</th><th>Puissance</th></tr>`;
+  f.grade_profile.forEach(r=>{ if(r.speed_kmh==null){h+=`<tr><td>${r.label}</td><td colspan="7" class="mute">données insuffisantes</td></tr>`;return;}
+    const cl=r.index_rel>1.05?'good':r.index_rel<0.9?'bad':'';
+    h+=`<tr><td>${r.label}</td><td>${fmt(r.n_min)} min</td><td>${fmt(r.speed_kmh,1)} km/h</td><td>${fmt(r.expected_kmh,1)}</td><td class="${cl}">${fmt(r.index_rel,2)}</td><td>${fmt(r.hr)}</td><td>${r.vam?fmt(r.vam)+' m/h':'–'}</td><td>${r.power?fmt(r.power)+' W':'–'}</td></tr>`;});
+  h+=`</table><p class="mute">*Attendu = vitesse prédite par le modèle énergétique de Minetti (2002) à effort constant à partir de ta vitesse sur le plat. Indice relatif &gt;1 : point fort ; &lt;1 : point faible. En descente, la vitesse est limitée par la technique et le freinage plutôt que par l'effort : l'indice mesure surtout ta prise de risque.</p></div>
+  <div class="card"><h2>Vitesse critique (CS) et puissance critique (CP)</h2>
+  <div class="grid" id="cp_kpis"></div>
+  <div class="two"><div><h3>Vitesse critique</h3><div id="mm_v" style="height:400px"></div></div><div><h3>Puissance critique</h3><div id="mm_p" style="height:400px"></div></div></div>
+  <table id="cp_table"></table>
+  <p class="mute">Points = tes meilleurs efforts (moyenne maximale sur la durée) ; ligne pointillée = modèle à deux paramètres ajusté sur 3 à 30 min (vitesse = CS + D'/t ; puissance = CP + W'/t). Losanges = FC moyenne pendant le meilleur effort. La FC sur les efforts courts est sous-estimée (elle monte avec un retard de 1 à 2 min). Ce sont des records d'entraînement, pas des tests : CS et CP sont probablement sous-estimées.</p></div>
+  <div class="card"><h2>Durabilité (pente Theil-Sen de l'efficience vitesse/FC)</h2>`;
+  if(d.pooled_pct_per_h!=null) h+=`<p><b>${fmt(d.pooled_pct_per_h,1)} %/h</b> (IC ${fmt(d.pooled_lo,1)} à ${fmt(d.pooled_hi,1)}) en regroupant ${d.pooled_blocks} blocs de ${d.n} sorties longues. Médiane par sortie : ${fmt(d.median_pct_per_h,1)} %/h.</p>`;
+  h+=`<div id="dur" style="height:${60+40*(f.durability_runs.length+1)}px"></div><details><summary>Détail par sortie</summary><table><tr><th>Sortie</th><th>Durée</th><th>Blocs</th><th>Pente %/h</th><th>IC 95 %</th></tr>`;
+  f.durability_runs.forEach(r=>h+=`<tr><td>${r.file.slice(0,38)}</td><td>${fmt(r.dur_h,1)} h</td><td>${r.n_blocks}</td><td>${fmt(r.pct_per_h,1)}</td><td>${fmt(r.ci_lo,0)} à ${fmt(r.ci_hi,0)}</td></tr>`);
+  h+=`</table></details><p class="note">Ta plus longue sortie fait ${fmt(f.longest_h,1)} h : la durabilité sur 10 h et plus ne peut pas être mesurée avec cet historique. L'app extrapolera avec des valeurs de la littérature, clairement signalées.</p></div>`;
+  $('#profil').innerHTML=h;
+  Charts.slopeSpeed(f); Charts.durability(f); renderCP(f);
+}).catch(e=>missing('#profil',e));
+
+/* ------------------------------------------------------------ Plan de course */
+let pctAuto=true, stopNames=null, timer=null;
+const sliders={aggr:['p_aggr','v_aggr',v=>v>0?'progressif '+v+' %':v<0?'rapide '+(-v)+' %':'régulier'],
+  climb:['p_climb','v_climb',v=>(v>0?'+':'')+v+' %'],descent:['p_descent','v_descent',v=>(v>0?'+':'')+v+' %'],
+  drift:['p_drift','v_drift',v=>v+' %/h'],tech_sens:['p_tech','v_tech',v=>'×'+v],night:['p_night','v_night',v=>v+' %'],
+  heat:['p_heat','v_heat',v=>v+' %/°C'],alt_sens:['p_alt','v_alt',v=>'×'+v]};
+function readNum(k){const [id]=sliders[k];return Number($('#'+id).value);}
+function refreshLabels(){for(const k in sliders){const [id,vl,f]=sliders[k];$('#'+vl).textContent=f(Number($('#'+id).value));}
+  $('#v_pct').textContent=$('#p_pct').value+' %';}
+function parseTarget(){const m=$('#p_target').value.trim().match(/^(\d{1,2})(?::|h)?(\d{0,2})$/);return m?Number(m[1])+Number(m[2]||0)/60:null;}
+function planQuery(){
+  const q=new URLSearchParams();
+  q.set('start',$('#p_start').value);
+  const tgt=parseTarget();
+  if(tgt) q.set('target_h',tgt); else if(!pctAuto) q.set('pct',Number($('#p_pct').value)/100);
+  q.set('aggr',readNum('aggr')/100);q.set('climb',readNum('climb')/100);q.set('descent',readNum('descent')/100);
+  q.set('drift',readNum('drift'));q.set('tech_sens',readNum('tech_sens'));q.set('night',readNum('night'));
+  q.set('heat',readNum('heat'));q.set('alt_sens',readNum('alt_sens'));
+  const st=[...document.querySelectorAll('.stopin')].map(i=>Number(i.value||0));
+  if(st.length) q.set('stops',st.join(','));
+  return q.toString();
+}
+function schedulePlan(){refreshLabels();clearTimeout(timer);timer=setTimeout(loadPlan,300);}
+async function loadPlan(){
+  try{renderPlan(await J('/api/plan?'+planQuery()));}catch(e){missing('#plan_out',e);}
+}
+function renderPlan(p){
+  if(!parseTarget()&&pctAuto) $('#p_pct').value=Math.round(p.pct*100);
+  if(parseTarget()) $('#p_pct').value=Math.round(p.pct*100);
+  $('#rec_note').textContent=`Recommandé pour ~${fmt(p.total_s/3600,1)} h : ${Math.round(p.recommended_pct*100)} % de CS (heuristique à calibrer). Ton allure d'entraînement de référence ≈ ${Math.round(p.pct_ref*100)} %.`;
+  refreshLabels();
+  if(!stopNames){stopNames=p.sections.slice(0,-1).map(s=>s.to);
+    $('#stops').innerHTML=stopNames.map((n,i)=>`<label>Arrêt « ${esc(n)} » (min)<input type="number" class="stopin" min="0" max="60" step="1" value="${p.sections[i].stop_min}"></label>`).join('');
+    document.querySelectorAll('.stopin').forEach(e=>e.oninput=schedulePlan);}
+  let msg='';
+  if(p.target_h){const need=Math.round(p.solved_pct*100), rec=Math.round(p.recommended_pct*100), d=need-rec;
+    const cls=d<=3?'ok':d<=10?'':'bad';
+    const txt=d<=3?'réaliste au regard de ton profil':d<=10?'ambitieux : au-dessus de l\'effort recommandé':'très ambitieux : peu compatible avec la durée';
+    msg=`<p>Pour finir en <b>${fmt(p.target_h,2).replace('.',' h ')}</b> il faut tenir <b>${need} %</b> de ta CS (recommandé ${rec} %) → <span class="${cls}">${txt}</span>.</p>`;}
+  const minMargin=Math.min(...p.sections.filter(s=>s.cutoff_margin_min!=null).map(s=>s.cutoff_margin_min));
+  let h=`<div class="grid">${kp(p.total,'Temps total (arrêts inclus)')}${kp(p.finish_clock,'Arrivée')}${kp(Math.round(p.pct*100)+' %','Effort moyen visé (CS)')}${kp(fmt(p.stops_s/60)+' min','Temps aux ravitos')}${kp(fmt(minMargin/60,1)+' h','Marge mini sur barrière')}</div>${msg}
+  <div class="card"><h2>Allure et temps de passage</h2><div id="plan_chart" style="height:520px"></div></div>
+  <div class="card"><h2>Plan par section</h2><table><tr><th>Section</th><th>Dist.</th><th>D+/D−</th><th>Temps</th><th>Allure</th><th>Passage</th><th>Heure</th><th>Arrêt</th><th>FC cible</th><th>Barrière (marge)</th><th>Météo</th></tr>`;
+  p.sections.forEach(s=>{const pc=s.pace_min_km, pm=Math.floor(pc), ps=Math.round((pc-pm)*60);
+    const mg=s.cutoff_margin_min!=null?`${s.cutoff} (<span class="${s.cutoff_margin_min<60?'bad':''}">${fmt(s.cutoff_margin_min/60,1)} h</span>)`:'–';
+    const w=s.temp!=null?`${fmt(s.temp,0)} °C · ${s.rain_mm_h>0.2?fmt(s.rain_mm_h,1)+' mm/h · ':''}${fmt(s.wind_kmh)} km/h`:'–';
+    h+=`<tr><td>${esc(s.from)} → ${esc(s.to)}</td><td>${fmt(s.dist_km,1)}</td><td>+${fmt(s.gain)} / −${fmt(s.loss)}</td><td>${s.time}</td><td>${pm}'${String(ps).padStart(2,'0')}/km</td><td>${s.arrival}</td><td>${s.clock}</td><td>${s.stop_min||'–'}</td><td>${fmt(s.hr_target)} bpm</td><td>${mg}</td><td>${w}</td></tr>`;});
+  h+=`</table><p class="mute">Allure = temps de déplacement sur la section, arrêt exclu. FC cible interpolée entre ta FC à l'effort de référence et ta FC sur tes meilleurs efforts de 30 min. Météo : ${p.weather_source||'indisponible'}.</p></div>`;
+  $('#plan_out').innerHTML=h;
+  Charts.plan(p);
+}
+
+for(const k in sliders){$('#'+sliders[k][0]).oninput=schedulePlan;}
+$('#p_pct').oninput=()=>{pctAuto=false;$('#p_target').value='';schedulePlan();};
+$('#p_target').oninput=schedulePlan; $('#p_start').onchange=schedulePlan;
+refreshLabels(); loadPlan();
+
+/* ------------------------------------------------------------ Mes données */
+let lastRunning=false;
+function jobBlock(j){
+  if(!j) return '';
+  if(j.state==='running') return `<div class="bar"><i style="width:${Math.round(j.progress*100)}%"></i></div><div class="mute">${esc(j.message)} (${Math.round(j.progress*100)} %)</div>`;
+  if(j.state==='error') return `<div class="err">Échec : ${esc(j.message)}</div>`;
+  return j.message&&j.message!=='Terminé'?`<div class="mute">${esc(j.message)}</div>`:'';
+}
+function renderStatus(s){
+  const g=s.gpx, a=s.archive, jc=s.jobs.course, jp=s.jobs.profile;
+  $('#gpx_state').innerHTML='<div class="state">'+(g.present&&!g.error
+    ?`<b>${esc(g.name)}</b><br>${g.km} km · D+ ${g.gain} m · D− ${g.loss} m · ${g.aids} ravito(s)${g.aids_manual?' (saisis à la main)':''}<br>Technicité OSM : ${g.osm?'<span class="ok">chargée</span>':(jc&&jc.state==='running'?'téléchargement…':'<span class="err">non disponible</span>')}`
+    :(g.error?`<span class="err">${esc(g.error)}</span>`:'Aucun GPX déposé.'))+jobBlock(jc)+'</div>';
+  const t=Object.entries(a.by_type||{}).map(([k,v])=>v+' '+k.slice(1).toUpperCase()).join(', ');
+  $('#arc_state').innerHTML='<div class="state">'+(a.files?`<b>${a.files} fichier(s)</b> (${t})`:'Aucune activité déposée.')
+    +(a.profile_ready?`<br>Profil prêt : <b>${a.n_runs}</b> sorties de course analysées sur ${fmt(a.span_days)} jours, la plus longue ${fmt(a.longest_h,1)} h.`:'')
+    +jobBlock(jp)+(a.files?`<div class="row"><button class="btn sec" id="b_recompute">Recalculer le profil</button><button class="btn danger" id="b_clear">Supprimer l'archive</button></div>`:'')+'</div>';
+  const rb=$('#b_recompute'); if(rb) rb.onclick=async()=>{await fetch('/api/recompute',{method:'POST'});poll();};
+  const cb=$('#b_clear'); if(cb) cb.onclick=async()=>{if(confirm("Supprimer toutes les activités déposées et le profil calculé ?")){await fetch('/api/archive',{method:'DELETE'});poll();}};
+}
+let pollTimer=null;
+async function poll(){
+  clearTimeout(pollTimer);
+  const s=await (await fetch('/api/status')).json(); renderStatus(s);
+  const running=Object.values(s.jobs).some(j=>j.state==='running');
+  if(lastRunning&&!running){ location.reload(); return; }   // un traitement vient de finir : on rafraîchit toutes les pages
+  lastRunning=running;
+  if(running) pollTimer=setTimeout(poll,1500);
+}
+function upload(url,fd,onprog){return new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open('POST',url);
+  x.upload.onprogress=e=>e.lengthComputable&&onprog(e.loaded/e.total);
+  x.onload=()=>{let b={};try{b=JSON.parse(x.responseText);}catch(e){} x.status<300?res(b):rej(b.detail||('Erreur '+x.status));};
+  x.onerror=()=>rej('Connexion au serveur perdue.');x.send(fd);});}
+function wireDrop(dropId,inputId,handler){
+  const d=$('#'+dropId), i=$('#'+inputId);
+  ['dragenter','dragover'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.add('over');}));
+  ['dragleave','drop'].forEach(ev=>d.addEventListener(ev,e=>{e.preventDefault();d.classList.remove('over');}));
+  d.addEventListener('drop',e=>handler([...e.dataTransfer.files]));
+  i.onchange=()=>{handler([...i.files]);i.value='';};
+}
+function sending(sel,pct){$(sel).innerHTML=`<div class="state"><div class="bar"><i style="width:${Math.round(pct*100)}%"></i></div><div class="mute">Envoi… ${Math.round(pct*100)} %</div></div>`;}
+wireDrop('drop_gpx','in_gpx',async files=>{
+  if(!files.length) return; const fd=new FormData(); fd.append('file',files[0]);
+  try{await upload('/api/upload/gpx',fd,p=>sending('#gpx_state',p)); lastRunning=true; poll();}
+  catch(e){poll().then(()=>$('#gpx_state').insertAdjacentHTML('afterbegin',`<div class="err state">${esc(e)}</div>`));}
+});
+wireDrop('drop_arc','in_arc',async files=>{
+  if(!files.length) return; const fd=new FormData(); files.forEach(f=>fd.append('files',f)); fd.append('replace',$('#arc_replace').checked);
+  try{await upload('/api/upload/archive',fd,p=>sending('#arc_state',p)); lastRunning=true; poll();}
+  catch(e){poll().then(()=>$('#arc_state').insertAdjacentHTML('afterbegin',`<div class="err state">${esc(e)}</div>`));}
+});
+
+/* ravitos */
+async function loadAids(){
+  let d; try{d=await J('/api/aids');}catch(e){return;}
+  const box=$('#aids_ed'); box.innerHTML=`<p class="mute">${d.manual?'Liste saisie à la main.':'Détectés automatiquement dans le GPX.'} Distance totale : ${fmt(d.total_km,1)} km. Barrière = temps limite depuis le départ (ex. 4h30), facultatif.</p><div id="aid_rows"></div>
+  <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn sec" id="aid_add">+ Ajouter un ravito</button><button class="btn" id="aid_save">Enregistrer</button>${d.manual?'<button class="btn sec" id="aid_auto">Revenir à la détection automatique</button>':''}</div><div id="aid_msg" class="state"></div>`;
+  const rows=$('#aid_rows');
+  const add=(a={})=>{const r=document.createElement('div');r.className='aidrow';
+    r.innerHTML='<input class="a_name" placeholder="Nom"><input class="a_km" type="number" step="0.1" min="0" placeholder="km"><input class="a_cut" placeholder="Barrière (ex. 4h30)"><button class="btn danger" type="button">✕</button>';
+    r.querySelector('.a_name').value=a.name||'';r.querySelector('.a_km').value=a.km??'';r.querySelector('.a_cut').value=a.cutoff||'';
+    r.querySelector('button').onclick=()=>r.remove();rows.appendChild(r);};
+  d.aids.forEach(add);
+  $('#aid_add').onclick=()=>add({name:'Ravitaillement'});
+  $('#aid_save').onclick=async()=>{
+    const body=[...rows.children].map(r=>({name:r.querySelector('.a_name').value,km:r.querySelector('.a_km').value,cutoff:r.querySelector('.a_cut').value})).filter(a=>a.km!=='');
+    const r=await fetch('/api/aids',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(r.ok) location.reload(); else $('#aid_msg').innerHTML='<span class="err">'+esc((await r.json()).detail)+'</span>';};
+  const au=$('#aid_auto'); if(au) au.onclick=async()=>{await fetch('/api/aids',{method:'DELETE'});location.reload();};
+}
+loadAids(); poll();
+(function(){let t=null;try{t=sessionStorage.getItem('tab');}catch(e){} if(t&&t!=='course') showTab(t);})();
+</script>
+</body>
+</html>

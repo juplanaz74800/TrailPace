@@ -1,0 +1,7 @@
+# Données personnelles : activités (GPS, FC), profil calculé, caches, GPX de course déposé
+data/
+scratch_data/
+__pycache__/
+*.pyc
+.venv/
+.env
