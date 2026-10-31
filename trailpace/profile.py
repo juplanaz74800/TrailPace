@@ -140,8 +140,30 @@ def mean_max(x, d):
     return float(s[i]), i
 
 
-def critical_model(acts_1hz):
-    """Courbe vitesse équivalente (GAP) et puissance max moyenne ; modèle CS/D' et CP/W' (3-30 min)."""
+def mean_max_hr(x, d, hr, hr_min):
+    """Meilleure moyenne de x sur d s, parmi les fenêtres où la FC moyenne atteint hr_min (effort réel)."""
+    if len(x) < d:
+        return None, None
+    c = np.cumsum(np.insert(np.nan_to_num(x), 0, 0))
+    s = (c[d:] - c[:-d]) / d
+    fin = np.isfinite(hr)
+    ch = np.cumsum(np.insert(np.where(fin, hr, 0.0), 0, 0))
+    cn = np.cumsum(np.insert(fin.astype(float), 0, 0))
+    n = cn[d:] - cn[:-d]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        h = (ch[d:] - ch[:-d]) / n
+    s = np.where((n >= 0.9 * d) & (h >= hr_min), s, -np.inf)
+    i = int(np.argmax(s))
+    return (float(s[i]), i) if np.isfinite(s[i]) else (None, None)
+
+
+def critical_model(acts_1hz, hrmax=None):
+    """Courbe vitesse équivalente (GAP) et puissance max moyenne ; modèle CS/D' et CP/W' (3-30 min).
+
+    Si hrmax est fourni, un record doit correspondre à un effort réel : FC moyenne >= 70 % de la FCmax
+    (écarte les tronçons en véhicule, les descentes roulées, les capteurs défaillants)."""
+    hr_min = 0.70 * hrmax if hrmax else None
+    mm = (lambda x, d, hr: mean_max_hr(x, d, hr, hr_min)) if hr_min else (lambda x, d, hr: mean_max(x, d))
     out = {"gap": {}, "power": {}, "hr_at_best": {}, "hr_at_best_power": {}}
     for d in DURATIONS:
         best, bestp, hr_best, hr_bestp = 0, 0, None, None
@@ -152,13 +174,15 @@ def critical_model(acts_1hz):
             if alt is None or ok.sum() < d:
                 continue
             gr = np.gradient(smooth(alt, 15)) / np.maximum(smooth(np.where(ok, v, 0.0), 15), 0.5)
-            gap_s = np.where(ok, v * gap_factor(gr), 0.0)
-            m, i = mean_max(gap_s, d)
+            # records = efforts en terrain plat ou montant : les descentes raides (vitesse due à la gravité) et les
+            # pentes aberrantes (altitude GPS bruitée) ne comptent pas comme vitesse équivalente à plat
+            gap_s = np.where(ok & (gr > -0.08) & (gr < 0.35), v * gap_factor(gr), 0.0)
+            m, i = mm(gap_s, d, g["hr"])
             if m and m > best:
                 best = m
                 seg_hr = g["hr"][i:i + d]
                 hr_best = float(np.nanmean(seg_hr)) if np.isfinite(seg_hr).any() else None
-            p, ip = mean_max(np.where(np.isfinite(g["power"]), g["power"], 0.0), d)
+            p, ip = mm(np.where(np.isfinite(g["power"]), g["power"], 0.0), d, g["hr"])
             if p and p > bestp:
                 bestp = p
                 seg_hr = g["hr"][ip:ip + d]

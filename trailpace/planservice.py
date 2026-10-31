@@ -33,13 +33,7 @@ def _median_alt():
     pr = profile_json()
     if pr.get("median_alt") is not None:
         return pr["median_alt"]
-    allacts = load_archive(FIT_DIR)
-    alts = [a["alt"][np.isfinite(a["alt"])] for s, a in allacts if s["sport"] == "running" and s["has_gps"]]
-    m = float(np.median(np.concatenate(alts)))
-    pr["median_alt"] = m
-    with open(PROFILE_CACHE, "w", encoding="utf-8") as f:
-        json.dump(pr, f, ensure_ascii=False)
-    return m
+    return None          # profil ancien sans altitude d'entraînement : l'effet d'altitude est alors ignoré
 
 
 def _parse_cutoff(txt):

@@ -100,6 +100,16 @@ def upload_archive(files: list[UploadFile] = File(...), replace: bool = Form(Fal
     return res
 
 
+@app.put("/api/settings")
+async def put_settings(request: Request):
+    body = await request.json()
+    try:
+        manage.set_window(int(body.get("window_days")))
+    except (manage.UploadError, TypeError, ValueError) as e:
+        raise HTTPException(400, str(e))
+    return {"started": jobs.start("profile", manage.prepare_profile)}
+
+
 @app.post("/api/recompute")
 def recompute():
     started = {"profile": jobs.start("profile", manage.prepare_profile)}

@@ -147,6 +147,22 @@ def clear_archive():
     invalidate()
 
 
+# ---------------------------------------------------------------- réglages
+WINDOWS = (180, 365, 730, 0)       # jours d'historique analysés ; 0 = toute l'archive
+
+
+def set_window(days):
+    if days not in WINDOWS:
+        raise UploadError("Période non prévue (6 mois, 1 an, 2 ans ou tout).")
+    s = service.load_settings()
+    s["window_days"] = days
+    os.makedirs(store.DATA, exist_ok=True)
+    with open(store.SETTINGS, "w", encoding="utf-8") as f:
+        json.dump(s, f)
+    store.remove(store.PROFILE_CACHE)
+    invalidate()
+
+
 # ---------------------------------------------------------------- ravitos
 def get_aids():
     r = _course_summary()
@@ -182,7 +198,8 @@ def _course_summary():
 
 
 def status():
-    out = {"jobs": jobs.snapshot(), "gpx": {"present": os.path.exists(store.GPX)}, "archive": {}}
+    out = {"jobs": jobs.snapshot(), "gpx": {"present": os.path.exists(store.GPX)}, "archive": {},
+           "where": {"code": os.path.dirname(os.path.abspath(__file__)), "cwd": os.getcwd()}}
     if out["gpx"]["present"]:
         try:
             r = _course_summary()
@@ -195,12 +212,14 @@ def status():
     exts = {}
     for p in files:
         exts[_base_ext(p)] = exts.get(_base_ext(p), 0) + 1
-    out["archive"] = {"files": len(files), "by_type": exts, "profile_ready": os.path.exists(store.PROFILE_CACHE)}
+    out["archive"] = {"files": len(files), "by_type": exts, "profile_ready": os.path.exists(store.PROFILE_CACHE),
+                      "window_days": service.load_settings()["window_days"]}
     if out["archive"]["profile_ready"]:
         with open(store.PROFILE_CACHE, encoding="utf-8") as f:
             pr = json.load(f)
         out["archive"].update(n_runs=pr["n_runs"], span_days=pr["span_days"], longest_h=pr["longest_h"],
-                              mtime=os.path.getmtime(store.PROFILE_CACHE))
+                              files_selected=pr.get("files_selected"), period_start=pr.get("period_start"),
+                              period_end=pr.get("period_end"), mtime=os.path.getmtime(store.PROFILE_CACHE))
     return out
 
 

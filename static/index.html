@@ -38,6 +38,7 @@ th:first-child,td:first-child{text-align:left}th{color:var(--mute);font-weight:5
 .chk{display:block;margin:10px 0 2px;font-size:13px;color:var(--mute)}
 .bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:var(--acc);transition:width .3s}
 .state{margin-top:12px;font-size:13.5px}.state .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.sel{font:inherit;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
 .err{color:var(--warn)}.aidrow{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:6px}
 .aidrow input{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:0}
 .two{display:grid;gap:18px;grid-template-columns:1fr}
@@ -271,8 +272,11 @@ function renderStatus(s){
     :(g.error?`<span class="err">${esc(g.error)}</span>`:'Aucun GPX déposé.'))+jobBlock(jc)+'</div>';
   const t=Object.entries(a.by_type||{}).map(([k,v])=>v+' '+k.slice(1).toUpperCase()).join(', ');
   $('#arc_state').innerHTML='<div class="state">'+(a.files?`<b>${a.files} fichier(s)</b> (${t})`:'Aucune activité déposée.')
-    +(a.profile_ready?`<br>Profil prêt : <b>${a.n_runs}</b> sorties de course analysées sur ${fmt(a.span_days)} jours, la plus longue ${fmt(a.longest_h,1)} h.`:'')
+    +(a.profile_ready?`<br>Profil prêt : <b>${a.n_runs}</b> sorties de course analysées sur ${fmt(a.span_days)} jours, la plus longue ${fmt(a.longest_h,1)} h.`
+      +(a.files_selected!=null?`<br><span class="mute">${a.files_selected} fichier(s) retenu(s) sur ${a.files}${a.period_start&&a.period_end?` · du ${new Date(a.period_start*1000).toLocaleDateString('fr-FR')} au ${new Date(a.period_end*1000).toLocaleDateString('fr-FR')}`:''}</span>`:''):'')
+    +(a.files?`<div class="row"><label class="mute">Période analysée <select id="win" class="sel">${[[180,'6 derniers mois'],[365,'12 derniers mois'],[730,'2 dernières années'],[0,'Toute l\'archive']].map(([v,l])=>`<option value="${v}"${v===a.window_days?' selected':''}>${l}</option>`).join('')}</select></label></div>`:'')
     +jobBlock(jp)+(a.files?`<div class="row"><button class="btn sec" id="b_recompute">Recalculer le profil</button><button class="btn danger" id="b_clear">Supprimer l'archive</button></div>`:'')+'</div>';
+  const win=$('#win'); if(win) win.onchange=async()=>{await fetch('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({window_days:Number(win.value)})});lastRunning=true;poll();};
   const rb=$('#b_recompute'); if(rb) rb.onclick=async()=>{await fetch('/api/recompute',{method:'POST'});poll();};
   const cb=$('#b_clear'); if(cb) cb.onclick=async()=>{if(confirm("Supprimer toutes les activités déposées et le profil calculé ?")){await fetch('/api/archive',{method:'DELETE'});poll();}};
 }

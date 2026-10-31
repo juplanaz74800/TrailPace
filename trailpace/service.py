@@ -8,7 +8,15 @@ from . import osm as O
 from . import profile as P
 from .fit_import import load_archive
 
-from .store import AIDS, FIT_DIR, GPX, OSM_CACHE, PROFILE_CACHE
+from .store import AIDS, DEFAULT_SETTINGS, FIT_DIR, GPX, OSM_CACHE, PROFILE_CACHE, SETTINGS
+
+
+def load_settings():
+    s = dict(DEFAULT_SETTINGS)
+    if os.path.exists(SETTINGS):
+        with open(SETTINGS, encoding="utf-8") as f:
+            s.update(json.load(f))
+    return s
 
 
 def _r(x, n=1):
@@ -73,7 +81,9 @@ def profile_json(force=False, progress=None):
             return json.load(f)
     rep = progress or (lambda *a, **k: None)
     rep(0.0, "Lecture des fichiers…")
-    allacts = load_archive(FIT_DIR, progress=lambda x: rep(0.5 * x))
+    meta = {}
+    window_days = int(load_settings()["window_days"])
+    allacts = load_archive(FIT_DIR, progress=lambda x, m=None: rep(0.5 * x, m), days=window_days or None, meta=meta)
     runs = [(s, a) for s, a in allacts if s["sport"] == "running" and s["has_gps"] and s["duration_s"] > 600]
     if len(runs) < 5:
         raise ValueError(f"Seulement {len(runs)} sortie(s) de course à pied avec GPS exploitable(s) : il en faut au moins 5.")
@@ -85,13 +95,15 @@ def profile_json(force=False, progress=None):
     hrmax = P.estimate_hrmax([w for _, w in wl])
     prof = P.grade_profile([w for _, w in wl], hrmax)
     rep(0.7, "Courbe vitesse/puissance critique…")
-    cm = P.critical_model([P.to_1hz(a) for _, a in runs])
+    cm = P.critical_model([P.to_1hz(a) for _, a in runs], hrmax=hrmax)
     rep(0.9, "Durabilité…")
     per, agg = P.durability(wl, hrmax)
     starts = [s["start"] for s, _ in runs]
     alts = np.concatenate([a["alt"][np.isfinite(a["alt"])] for _, a in runs])
     out = {
         "median_alt": float(np.median(alts)) if alts.size else None,
+        "window_days": window_days, "files_total": meta.get("total_files"), "files_selected": meta.get("selected_files"),
+        "period_start": meta.get("cutoff") if window_days else min(s["start"] for s, _ in runs), "period_end": meta.get("ref"),
         "n_activities": len(allacts), "n_runs": len(runs),
         "span_days": _r((max(starts) - min(starts)) / 86400, 0),
         "longest_h": _r(max(s["duration_s"] for s, _ in runs) / 3600),

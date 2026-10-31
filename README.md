@@ -7,10 +7,18 @@ Planification de l'allure d'une course trail/ultra à partir d'une trace GPX, du
 
 ```bash
 pip install -r requirements.txt
-python -m uvicorn app:app --port 8000
+python run.py
 ```
 
 Puis ouvrir http://localhost:8000 et déposer le GPX et l'archive dans l'onglet « Mes données ».
+
+## Grosses archives
+
+Le profil n'utilise par défaut que les **12 derniers mois** de l'archive (réglable : 6 mois, 12 mois, 2 ans, tout).
+Les fichiers hors période sont écartés avant décodage (date lue rapidement, mise en cache dans `data/.start_cache.json`),
+les doublons FIT/TCX/GPX d'une même sortie sont ignorés, et la lecture se fait en parallèle.
+Exemple : 5 050 fichiers → 436 retenus, profil calculé en environ 30 s.
+Les records (CS/CP) exigent un effort réel (FC moyenne ≥ 70 % de la FCmax) en terrain plat ou montant.
 
 ## Contenu
 

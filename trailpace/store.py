@@ -7,6 +7,8 @@ FIT_DIR = f"{DATA}/activities"
 OSM_CACHE = f"{DATA}/osm_cache.json"
 PROFILE_CACHE = f"{DATA}/profile.json"
 AIDS = f"{DATA}/aids.json"
+SETTINGS = f"{DATA}/settings.json"
+DEFAULT_SETTINGS = {"window_days": 365}          # 0 = toute l'archive
 
 ACTIVITY_EXT = (".fit", ".tcx", ".gpx")
 MAX_FILE_BYTES = 150 * 1024 * 1024
