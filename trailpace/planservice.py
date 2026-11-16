@@ -68,7 +68,7 @@ def plan_json(q):
     kms.append(r["total_km"])
     wx = None
     try:
-        wx = WX.fetch(pts, start.replace(minute=0), hours=24)
+        wx = WX.fetch(pts, start.replace(minute=0), hours=36)
     except Exception:
         pass
 
@@ -167,6 +167,8 @@ def plan_json(q):
         "finish_clock": (start + timedelta(seconds=res["total_s"])).strftime("%a %d/%m %H:%M"),
         "target_h": q.get("target_h"),
         "weather_source": wx["source"] if wx else None,
+        "weather_forecast_until": wx.get("forecast_until") if wx else None,
+        "weather_forecast_from": WX.forecast_from(start.date()).isoformat(),
         "sections": sections,
         "profile": {"km": [round(float(x) / 1000, 2) for x in grid[::k]],
                     "ele": [round(float(x)) for x in r["ele"][::k]],

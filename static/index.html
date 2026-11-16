@@ -292,7 +292,7 @@ function renderPlan(p){
     const mg=s.cutoff_margin_min!=null?`${s.cutoff} (<span class="${s.cutoff_margin_min<60?'bad':''}">${fmt(s.cutoff_margin_min/60,1)} h</span>)`:'–';
     const w=s.temp!=null?`${fmt(s.temp,0)} °C · ${s.rain_mm_h>0.2?fmt(s.rain_mm_h,1)+' mm/h · ':''}${fmt(s.wind_kmh)} km/h`:'–';
     h+=`<tr><td>${esc(s.from)} → ${esc(s.to)}</td><td>${fmt(s.dist_km,1)}</td><td>+${fmt(s.gain)} / −${fmt(s.loss)}</td><td>${s.time}</td><td>${pm}'${String(ps).padStart(2,'0')}/km</td><td>${s.arrival}</td><td>${s.clock}</td><td>${s.stop_min||'–'}</td><td>${fmt(s.hr_target)} bpm</td>${p.power?`<td>${fmt(s.power_w)} W <span class="mute">(${fmt(s.power_pct_cp)} %)</span></td>`:''}<td>${mg}</td><td>${w}</td></tr>`;});
-  h+=`</table><p class="mute">Allure = temps de déplacement sur la section, arrêt exclu. FC cible interpolée entre ta FC à l'effort de référence et ta FC sur tes meilleurs efforts de 30 min. Météo : ${p.weather_source||'indisponible'}.</p></div>`;
+  h+=`</table><p class="mute">Allure = temps de déplacement sur la section, arrêt exclu. FC cible interpolée entre ta FC à l'effort de référence et ta FC sur tes meilleurs efforts de 30 min. Météo : ${esc(p.weather_source||'indisponible')}.${!p.weather_forecast_until&&p.weather_forecast_from?` <b>Les prévisions réelles seront disponibles à partir du ${new Date(p.weather_forecast_from+'T12:00').toLocaleDateString('fr-FR')}</b> (16 jours avant le départ) ; elles sont plus fiables à l'approche de la course, et la page les utilisera automatiquement.`:''}</p></div>`;
   $('#plan_out').innerHTML=h;
   Charts.plan(p);
 }
