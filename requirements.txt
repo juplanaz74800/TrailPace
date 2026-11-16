@@ -7,3 +7,4 @@ gpxpy
 fitdecode
 defusedxml
 requests
+reportlab

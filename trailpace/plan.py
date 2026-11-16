@@ -25,7 +25,7 @@ def recommended_pct(hours):
 class SpeedTable:
     """Vitesse (m/s) de l'athlète par pente, interpolée sur ses mesures sous-maximales."""
 
-    def __init__(self, grade_profile, cs_kmh):
+    def __init__(self, grade_profile, cs_kmh, cp_w=None):
         rows = [r for r in grade_profile if r.get("speed_kmh")]
         rows.sort(key=lambda r: r["grade_med"])
         self.g = np.array([r["grade_med"] for r in rows])
@@ -33,6 +33,18 @@ class SpeedTable:
         flat = min(rows, key=lambda r: abs(r["grade_med"]))
         self.pct_ref = flat["speed_kmh"] / cs_kmh      # fraction de CS correspondant à ces mesures
         self.flat_hr = flat["hr"]
+        # puissance : mesurée par pente à l'effort de référence, mise à l'échelle entre cet effort et la CP
+        prow = [r for r in rows if r.get("power")]
+        self.has_power = bool(cp_w) and len(prow) >= 4 and bool(flat.get("power")) and cp_w > flat["power"]
+        if self.has_power:
+            self.pg = np.array([r["grade_med"] for r in prow])
+            self.p = np.array([r["power"] for r in prow], dtype=float)
+            self.p_flat, self.cp = float(flat["power"]), float(cp_w)
+
+    def power(self, grade_pct, pct):
+        """Puissance cible (W) sur une pente donnée pour un effort pct (fraction de la vitesse critique)."""
+        scale = 1 + (self.cp / self.p_flat - 1) * (pct - self.pct_ref) / (1 - self.pct_ref)
+        return float(np.interp(grade_pct, self.pg, self.p)) * max(0.3, scale)
 
     def speed(self, grade_pct):
         if grade_pct <= self.g[0]:      # plus raide que les mesures : on garde la vitesse mesurée la plus proche
@@ -67,6 +79,8 @@ def simulate(course, table, params, weather=None, ref_alt=None):
     times = np.zeros(len(grid))
     speeds = np.zeros(len(grid))
     mults = np.zeros(len(grid))
+    powers = np.zeros(len(grid))      # puissance cible (W) en chaque point
+    dts = np.zeros(len(grid))         # temps de déplacement (s) du pas, arrêts exclus
     stop_total = 0.0
     arrive_aid = {}
     for i in range(1, len(grid)):
@@ -99,6 +113,9 @@ def simulate(course, table, params, weather=None, ref_alt=None):
         hrs = t / 3600
         v *= max(0.55, 1 - params["drift_pct_h"] / 100 * max(0.0, hrs - 1))
         v = max(v, 0.3)
+        if table.has_power:       # l'effort visé (donc la puissance) n'est pas réduit par la fatigue : c'est la vitesse qui baisse
+            powers[i] = table.power(g, pct) * ((1 + params["climb"]) if g > 3 else 1.0)
+        dts[i] = d / v
         t += d / v
         times[i] = t
         speeds[i] = v
@@ -111,7 +128,8 @@ def simulate(course, table, params, weather=None, ref_alt=None):
             nxt += 1
         times[i] = t
     speeds[0] = speeds[1]
-    return {"t": times, "v": speeds, "total_s": t, "stop_s": stop_total, "arrive_aid": arrive_aid}
+    powers[0] = powers[1]
+    return {"t": times, "v": speeds, "p": powers, "dt": dts, "total_s": t, "stop_s": stop_total, "arrive_aid": arrive_aid}
 
 
 def solve_pct(course, table, params, target_s, **kw):

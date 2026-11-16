@@ -202,13 +202,17 @@
       { x: pf.km, y: pf.pace.map(x => x == null ? null : Math.min(Math.max(x, pmin), pmax)), xaxis: 'x2', yaxis: 'y2', type: 'scatter', mode: 'lines', line: { color: t.acc, width: 2, shape: 'spline', smoothing: 0.6 },
         text: pts, hoverinfo: 'text' },
     ];
+    const ps = p.power && p.power.series;       // puissance cible (courbe lissée sur 1 km)
+    if (ps) tr.push({ x: pf.km, y: ps, xaxis: 'x2', yaxis: 'y3', type: 'scatter', mode: 'lines', line: { color: C.amber, width: 1.6, dash: 'dot' },
+      text: ps.map((w, i) => `<b>km ${fr(pf.km[i], 1)}</b><br>puissance cible ${w} W (${fr(100 * w / p.power.cp)} % CP)`), hoverinfo: 'text' });
     const shapes = [], annotations = [];
     ends.forEach((s, i) => {
       shapes.push({ type: 'line', xref: 'x', yref: 'paper', x0: s.end_km, x1: s.end_km, y0: 0, y1: 1, line: { color: t.acc, width: 1, dash: 'dot' } });
       annotations.push({ x: s.end_km, xref: 'x', y: 1, yref: 'paper', yanchor: 'bottom', text: `<b>R${i + 1}</b> ${s.clock}`, showarrow: false, font: { size: 10.5, color: t.acc } });
     });
     shapes.push({ type: 'line', xref: 'x2', yref: 'y2', x0: 0, x1: pf.km[pf.km.length - 1], y0: movingAvg, y1: movingAvg, line: { color: t.warn, width: 1.2, dash: 'dash' } });
-    annotations.push({ xref: 'paper', x: 1.005, xanchor: 'left', yref: 'y2', y: movingAvg, text: `moy.<br>${pace(movingAvg)}`, showarrow: false, font: { size: 10.5, color: t.warn } });
+    annotations.push({ xref: 'paper', x: 0, xanchor: 'left', yref: 'paper', y: 0.5, yanchor: 'bottom', showarrow: false, font: { size: 11, color: t.mute },
+      text: `<span style="color:${t.acc}">━ allure</span>   ` + (ps ? `<span style="color:${C.amber}">┅ puissance cible</span>   ` : '') + `<span style="color:${t.warn}">╌ allure moyenne ${pace(movingAvg)}/km</span>` });
     const tv = []; for (let v = pmin; v <= pmax; v += 1) tv.push(v);
     // axe du temps prévu : position (km) où le temps écoulé atteint chaque heure, avec l'heure de la journée
     const kmEnd = pf.km[pf.km.length - 1], t0 = new Date(p.params.start), hv = [], ht = [];
@@ -226,11 +230,13 @@
     });
     annotations.push({ xref: 'paper', x: 0, xanchor: 'right', yref: 'paper', y: -0.2, yanchor: 'top', text: 'temps<br>prévu', showarrow: false, font: { size: 10.5, color: t.mute }, align: 'right' });
     Plotly.react('plan_chart', tr, layout({
-      margin: { l: 58, r: 52, t: 40, b: 118 }, shapes, annotations,
+      margin: { l: 58, r: ps ? 66 : 52, t: 40, b: 118 }, shapes, annotations,
       xaxis: axis({ domain: [0, 1], anchor: 'y', range: [0, pf.km[pf.km.length - 1]], showticklabels: false, showgrid: false }),
       xaxis2: axis({ domain: [0, 1], anchor: 'y2', range: [0, pf.km[pf.km.length - 1]], title: 'distance (km)', dtick: 10, showgrid: false }),
       yaxis: axis({ domain: [0.58, 1], anchor: 'x', title: 'altitude (m)', range: [Math.max(0, emin - 60), emax + 60] }),
       yaxis2: axis({ domain: [0, 0.46], anchor: 'x2', title: 'allure (min/km)', range: [pmax, pmin], tickvals: tv, ticktext: tv.map(v => `${v}'00`) }),
+      ...(ps ? { yaxis3: axis({ domain: [0, 0.46], anchor: 'x2', overlaying: 'y2', side: 'right', title: { text: 'puissance (W)', font: { size: 12, color: C.amber }, standoff: 6 },
+        showgrid: false, tickfont: { size: 11, color: C.amber }, range: [Math.min(...ps) - 30, Math.max(...ps) + 30] }) } : {}),
     }), CFG);
   }
 

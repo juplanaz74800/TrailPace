@@ -30,6 +30,8 @@ th:first-child,td:first-child{text-align:left}th{color:var(--mute);font-weight:5
 .mute{color:var(--mute);font-size:13px}
 .good{color:var(--acc);font-weight:600}.bad{color:var(--warn);font-weight:600}
 .hide{display:none}
+.exports{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.exports a.btn{text-decoration:none}
 .two2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
 .drop{border:2px dashed var(--line);border-radius:12px;padding:22px 16px;text-align:center;transition:.15s;line-height:1.6}
 .drop.over{border-color:var(--acc);background:rgba(15,107,92,.07)}
@@ -243,13 +245,14 @@ function renderPlan(p){
     msg=`<p>Pour finir en <b>${fmt(p.target_h,2).replace('.',' h ')}</b> il faut tenir <b>${need} %</b> de ta CS (recommandé ${rec} %) → <span class="${cls}">${txt}</span>.</p>`;}
   const margins=p.sections.filter(s=>s.cutoff_margin_min!=null).map(s=>s.cutoff_margin_min);
   const marginKpi=margins.length?kp(fmt(Math.min(...margins)/60,1)+' h','Marge mini sur barrière'):kp('–','Marge sur barrière : aucune barrière saisie');
-  let h=`<div class="grid">${kp(p.total,'Temps total (arrêts inclus)')}${kp(p.finish_clock,'Arrivée')}${kp(Math.round(p.pct*100)+' %','Effort moyen visé (CS)')}${kp(fmt(p.stops_s/60)+' min','Temps aux ravitos')}${marginKpi}</div>${msg}
+  let h=`<div class="grid">${kp(p.total,'Temps total (arrêts inclus)')}${kp(p.finish_clock,'Arrivée')}${kp(Math.round(p.pct*100)+' %','Effort moyen visé (CS)')}${p.power?kp(fmt(p.power.avg)+' W','Puissance moyenne · '+fmt(p.power.pct_cp)+' % de ta CP'):''}${kp(fmt(p.stops_s/60)+' min','Temps aux ravitos')}${marginKpi}</div>
+  <div class="exports"><span class="mute">Exporter le plan :</span><a class="btn sec" id="x_pdf" href="/api/plan/export/pdf?${planQuery()}" download>Fiche PDF</a><a class="btn sec" id="x_gpx" href="/api/plan/export/gpx?${planQuery()}" download>GPX avec temps de passage</a></div>${msg}
   <div class="card"><h2>Allure et temps de passage</h2><div id="plan_chart" style="height:520px"></div></div>
-  <div class="card"><h2>Plan par section</h2><table><tr><th>Section</th><th>Dist.</th><th>D+/D−</th><th>Temps</th><th>Allure</th><th>Passage</th><th>Heure</th><th>Arrêt</th><th>FC cible</th><th>Barrière (marge)</th><th>Météo</th></tr>`;
+  <div class="card"><h2>Plan par section</h2><table><tr><th>Section</th><th>Dist.</th><th>D+/D−</th><th>Temps</th><th>Allure</th><th>Passage</th><th>Heure</th><th>Arrêt</th><th>FC cible</th>${p.power?'<th>Puissance</th>':''}<th>Barrière (marge)</th><th>Météo</th></tr>`;
   p.sections.forEach(s=>{const pc=s.pace_min_km, pm=Math.floor(pc), ps=Math.round((pc-pm)*60);
     const mg=s.cutoff_margin_min!=null?`${s.cutoff} (<span class="${s.cutoff_margin_min<60?'bad':''}">${fmt(s.cutoff_margin_min/60,1)} h</span>)`:'–';
     const w=s.temp!=null?`${fmt(s.temp,0)} °C · ${s.rain_mm_h>0.2?fmt(s.rain_mm_h,1)+' mm/h · ':''}${fmt(s.wind_kmh)} km/h`:'–';
-    h+=`<tr><td>${esc(s.from)} → ${esc(s.to)}</td><td>${fmt(s.dist_km,1)}</td><td>+${fmt(s.gain)} / −${fmt(s.loss)}</td><td>${s.time}</td><td>${pm}'${String(ps).padStart(2,'0')}/km</td><td>${s.arrival}</td><td>${s.clock}</td><td>${s.stop_min||'–'}</td><td>${fmt(s.hr_target)} bpm</td><td>${mg}</td><td>${w}</td></tr>`;});
+    h+=`<tr><td>${esc(s.from)} → ${esc(s.to)}</td><td>${fmt(s.dist_km,1)}</td><td>+${fmt(s.gain)} / −${fmt(s.loss)}</td><td>${s.time}</td><td>${pm}'${String(ps).padStart(2,'0')}/km</td><td>${s.arrival}</td><td>${s.clock}</td><td>${s.stop_min||'–'}</td><td>${fmt(s.hr_target)} bpm</td>${p.power?`<td>${fmt(s.power_w)} W <span class="mute">(${fmt(s.power_pct_cp)} %)</span></td>`:''}<td>${mg}</td><td>${w}</td></tr>`;});
   h+=`</table><p class="mute">Allure = temps de déplacement sur la section, arrêt exclu. FC cible interpolée entre ta FC à l'effort de référence et ta FC sur tes meilleurs efforts de 30 min. Météo : ${p.weather_source||'indisponible'}.</p></div>`;
   $('#plan_out').innerHTML=h;
   Charts.plan(p);

@@ -20,7 +20,19 @@ les doublons FIT/TCX/GPX d'une même sortie sont ignorés, et la lecture se fait
 Exemple : 5 050 fichiers → 436 retenus, profil calculé en environ 30 s.
 Les records (CS/CP) exigent un effort réel (FC moyenne ≥ 70 % de la FCmax) en terrain plat ou montant.
 
+## Puissance et exports
+
+Si les sorties contiennent de la puissance, le plan donne aussi une **puissance cible** par section (W et % de la CP),
+adaptée à la pente à partir de tes mesures par type de terrain.
+Le plan s'exporte depuis l'onglet « Plan de course » :
+
+- **Fiche PDF** (A4 paysage) : profil avec ravitos et repères horaires, tableau par section (temps, allure, passage, FC, puissance, barrière, météo).
+- **GPX avec temps de passage** : trace horodatée selon le plan, ravitos en waypoints (heure de passage, arrêt, allure et puissance de la section suivante).
+  L'heure de départ est interprétée dans le fuseau de la machine.
+
 ## Contenu
+
+- `trailpace/export.py` : exports PDF et GPX
 
 - `trailpace/course.py` : analyse du parcours (profil, pentes, sections, ravitos)
 - `trailpace/osm.py` : technicité déduite d'OpenStreetMap (Overpass)

@@ -47,7 +47,7 @@ def plan_json(q):
     """q : dict de paramètres (valeurs absentes = défauts)."""
     r = _course_full()
     pr = profile_json()
-    table = PL.SpeedTable(pr["grade_profile"], pr["cs_kmh"])
+    table = PL.SpeedTable(pr["grade_profile"], pr["cs_kmh"], pr.get("cp_w"))
     start = datetime.fromisoformat(q.get("start") or START_DEFAULT)
     n_aid = len(r["aid_km"])
     stops = (list(q.get("stops_min") or []) + [3.0] * n_aid)[:n_aid]
@@ -118,7 +118,14 @@ def plan_json(q):
         cut = _parse_cutoff(r["aid_stations"][i]["cutoff"]) if not last else None
         mid_clock = start + timedelta(seconds=(prev_dep + arr) / 2)
         km_mid = (s["start_km"] + s["end_km"]) / 2 * 1000
+        pw = None
+        if table.has_power:                      # moyenne de la puissance cible, pondérée par le temps de déplacement
+            seg = slice(i0 + 1, i1 + 1)
+            w = res["dt"][seg]
+            pw = float((res["p"][seg] * w).sum() / w.sum()) if w.sum() > 0 else None
         sections.append({
+            "arrival_s": arr, "departure_s": dep,
+            "power_w": pw, "power_pct_cp": pw / table.cp * 100 if pw else None,
             "n": s["n"], "from": s["from"], "to": s["to"], "start_km": s["start_km"], "end_km": s["end_km"],
             "dist_km": s["dist_km"], "gain": s["gain"], "loss": s["loss"],
             "time_s": arr - prev_dep, "time": PL.fmt_hm(arr - prev_dep),
@@ -143,7 +150,16 @@ def plan_json(q):
     for i in range(win, len(grid)):
         pace[i] = (t[i] - t[i - win]) / 60 / ((grid[i] - grid[i - win]) / 1000)
     pace[:win] = pace[win]
+    power = None
+    if table.has_power:
+        kern = np.ones(win) / win
+        sm = np.convolve(np.pad(res["p"], (win // 2, win - win // 2 - 1), mode="edge"), kern, mode="valid")
+        power = {"avg": float((res["p"] * res["dt"]).sum() / res["dt"].sum()), "cp": table.cp,
+                 "series": [round(float(x)) for x in sm[::k]]}
+        power["pct_cp"] = power["avg"] / table.cp * 100
     return {
+        "course_name": r.get("name", "Parcours").replace("�", "é"),
+        "power": power,
         "params": {**{kk: vv for kk, vv in params.items() if kk != "start"}, "start": start.isoformat()},
         "recommended_pct": rec, "solved_pct": solved, "pct": pct,
         "cs_kmh": pr["cs_kmh"], "pct_ref": table.pct_ref, "ref_alt": kw["ref_alt"],
@@ -155,5 +171,7 @@ def plan_json(q):
         "profile": {"km": [round(float(x) / 1000, 2) for x in grid[::k]],
                     "ele": [round(float(x)) for x in r["ele"][::k]],
                     "t_h": [round(float(x) / 3600, 3) for x in res["t"][::k]],
-                    "pace": [None if np.isnan(x) else round(float(x), 2) for x in pace[::k]]},
+                    "pace": [None if np.isnan(x) else round(float(x), 2) for x in pace[::k]],
+                    "lat": [round(float(x), 5) for x in r["lat"][::k]],
+                    "lon": [round(float(x), 5) for x in r["lon"][::k]]},
     }

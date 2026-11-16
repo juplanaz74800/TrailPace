@@ -3,11 +3,11 @@ import os
 from functools import lru_cache
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from trailpace import jobs, manage, planservice, service, store
+from trailpace import export, jobs, manage, planservice, service, store
 from trailpace.fit_import import list_files
 
 app = FastAPI(title="Trailpace")
@@ -20,7 +20,10 @@ async def same_origin_only(request: Request, call_next):
         origin = request.headers.get("origin")
         if origin and urlparse(origin).netloc != request.headers.get("host"):
             return JSONResponse({"detail": "Origine refusée"}, status_code=403)
-    return await call_next(request)
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-cache"      # l'interface est revalidée à chaque chargement (mises à jour visibles)
+    return response
 
 
 @lru_cache(maxsize=1)
@@ -60,18 +63,40 @@ def profile():
     return service.profile_json()
 
 
-@app.get("/api/plan")
-def plan(start: str = None, pct: float = None, target_h: float = None, aggr: float = 0.0, climb: float = 0.0,
-         descent: float = 0.0, drift: float = 1.5, tech_sens: float = 1.0, night: float = 4.0, heat: float = 0.4,
-         alt_sens: float = 1.0, stops: str = None):
+def _plan_query(start: str = None, pct: float = None, target_h: float = None, aggr: float = 0.0, climb: float = 0.0,
+                descent: float = 0.0, drift: float = 1.5, tech_sens: float = 1.0, night: float = 4.0, heat: float = 0.4,
+                alt_sens: float = 1.0, stops: str = None):
+    """Paramètres du plan (communs à l'affichage et aux exports)."""
     if not os.path.exists(store.GPX):
         raise HTTPException(404, "no_gpx")
     if not os.path.exists(store.PROFILE_CACHE):
         raise HTTPException(404, "no_archive")
-    q = {"start": start, "pct": pct, "target_h": target_h, "aggr": aggr, "climb": climb, "descent": descent,
-         "drift": drift, "tech_sens": tech_sens, "night": night, "heat": heat, "alt_sens": alt_sens,
-         "stops_min": [float(x) for x in stops.split(",")] if stops else None}
+    try:
+        stops_min = [float(x) for x in stops.split(",")] if stops else None
+    except ValueError:
+        raise HTTPException(400, "Temps d'arrêt invalides.")
+    return {"start": start, "pct": pct, "target_h": target_h, "aggr": aggr, "climb": climb, "descent": descent,
+            "drift": drift, "tech_sens": tech_sens, "night": night, "heat": heat, "alt_sens": alt_sens,
+            "stops_min": stops_min}
+
+
+@app.get("/api/plan")
+def plan(q: dict = Depends(_plan_query)):
     return planservice.plan_json(q)
+
+
+@app.get("/api/plan/export/{fmt}")
+def plan_export(fmt: str, q: dict = Depends(_plan_query)):
+    """Exporte le plan : fiche PDF imprimable ou GPX avec heures de passage."""
+    if fmt not in ("pdf", "gpx"):
+        raise HTTPException(404, "Format inconnu (pdf ou gpx).")
+    p = planservice.plan_json(q)
+    if fmt == "pdf":
+        body, media = export.plan_pdf(p), "application/pdf"
+    else:
+        body, media = export.plan_gpx(p).encode("utf-8"), "application/gpx+xml"
+    return Response(body, media_type=media,
+                    headers={"Content-Disposition": f'attachment; filename="{export.filename(p, fmt)}"'})
 
 
 @app.get("/api/status")
