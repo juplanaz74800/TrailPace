@@ -100,7 +100,13 @@ def profile_json(force=False, progress=None):
     per, agg = P.durability(wl, hrmax)
     starts = [s["start"] for s, _ in runs]
     alts = np.concatenate([a["alt"][np.isfinite(a["alt"])] for _, a in runs])
+    sessions = []          # bilan d'entraînement : durée et dépense (modèle de coût de Minetti, kcal par kg de poids de corps)
+    for s, w in wl:
+        kcal_kg = float((P.minetti_cost(w["grade"]) * w["v"] * P.W).sum() / 4184)
+        sessions.append({"start": s["start"], "dur_h": round(s["duration_s"] / 3600, 2), "dist_km": round(s["dist_km"], 1),
+                         "gain": round(s["gain"]), "kcal_per_kg": round(kcal_kg, 2)})
     out = {
+        "sessions": sessions,
         "median_alt": float(np.median(alts)) if alts.size else None,
         "window_days": window_days, "files_total": meta.get("total_files"), "files_selected": meta.get("selected_files"),
         "period_start": meta.get("cutoff") if window_days else min(s["start"] for s, _ in runs), "period_end": meta.get("ref"),

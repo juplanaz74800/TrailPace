@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from trailpace import export, jobs, manage, planservice, service, store
+from trailpace import export, jobs, manage, nutrition, planservice, service, store
 from trailpace.fit_import import list_files
 
 app = FastAPI(title="Trailpace")
@@ -85,18 +85,54 @@ def plan(q: dict = Depends(_plan_query)):
     return planservice.plan_json(q)
 
 
+def _nutrition_for(p, carb, fluid_pct, na_pct):
+    prof = nutrition.load_profile()
+    return nutrition.build(p, prof, carb, fluid_pct, na_pct), prof
+
+
 @app.get("/api/plan/export/{fmt}")
-def plan_export(fmt: str, q: dict = Depends(_plan_query)):
-    """Exporte le plan : fiche PDF imprimable ou GPX avec heures de passage."""
+def plan_export(fmt: str, q: dict = Depends(_plan_query), nut: int = 1, carb: float = None, fluid_pct: float = 70.0,
+                na_pct: float = 40.0):
+    """Exporte le plan : fiche PDF imprimable ou GPX avec heures de passage (nutrition incluse si le profil nutrition existe)."""
     if fmt not in ("pdf", "gpx"):
         raise HTTPException(404, "Format inconnu (pdf ou gpx).")
     p = planservice.plan_json(q)
+    nut_plan = _nutrition_for(p, carb, fluid_pct, na_pct)[0] if nut and os.path.exists(store.NUTRITION) else None
     if fmt == "pdf":
-        body, media = export.plan_pdf(p), "application/pdf"
+        body, media = export.plan_pdf(p, nut_plan), "application/pdf"
     else:
-        body, media = export.plan_gpx(p).encode("utf-8"), "application/gpx+xml"
+        body, media = export.plan_gpx(p, nut_plan).encode("utf-8"), "application/gpx+xml"
     return Response(body, media_type=media,
                     headers={"Content-Disposition": f'attachment; filename="{export.filename(p, fmt)}"'})
+
+
+@app.get("/api/nutrition/profile")
+def nutrition_profile():
+    return nutrition.load_profile()
+
+
+@app.get("/api/nutrition/defaults")
+def nutrition_defaults():
+    return {"products": nutrition.DEFAULT_PRODUCTS}
+
+
+@app.put("/api/nutrition/profile")
+async def put_nutrition_profile(request: Request):
+    try:
+        return nutrition.save_profile(await request.json())
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/nutrition/plan")
+def nutrition_plan(q: dict = Depends(_plan_query), carb: float = None, fluid_pct: float = 70.0, na_pct: float = 40.0):
+    """Plan nutrition par section, bilan de l'athlète et avertissements pour le plan de course courant."""
+    p = planservice.plan_json(q)
+    nut, prof = _nutrition_for(p, carb, fluid_pct, na_pct)
+    sessions = service.profile_json().get("sessions", [])
+    return {"race": {"total": p["total"], "total_s": p["total_s"], "finish_clock": p["finish_clock"], "course_name": p["course_name"]},
+            "nutrition": nut, "bilan": nutrition.bilan(prof, sessions, p["total_s"] / 3600),
+            "default_carb": nutrition.default_carb_target(p["total_s"] / 3600, prof.get("habit_g_h"))}
 
 
 @app.get("/api/status")

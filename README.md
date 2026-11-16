@@ -30,7 +30,20 @@ Le plan s'exporte depuis l'onglet « Plan de course » :
 - **GPX avec temps de passage** : trace horodatée selon le plan, ravitos en waypoints (heure de passage, arrêt, allure et puissance de la section suivante).
   L'heure de départ est interprétée dans le fuseau de la machine.
 
+## Nutrition et hydratation
+
+Onglet « Nutrition » (calculateur général, valable pour toute course) :
+
+- **Profil nutrition** : poids, habitudes (g/h en sortie longue), tolérance digestive, caféine, produits réels (glucides, sodium, volume, fructose, part des glucides) et **tests de sudation** (pesées avant/après).
+- **Bilan** : volume d'entraînement des 28 derniers jours, besoins quotidiens en glucides (g/kg), dépense estimée, comparaison de l'apport habituel aux repères par durée.
+- **Plan par section** : glucides (g/h selon la durée : seuils de la revue Morton et al. 2026, d'après la vidéo Courir Mieux), ratio glucose:fructose conseillé selon la dose,
+  quantités de produits, liquide (sudation estimée, jamais au-delà de la sueur) et sodium, avec avertissements ; inclus dans l'export PDF et GPX.
+
+Sources et statut de chaque chiffre : `docs/nutrition_recherche.md`. Les données saisies sont dans `data/nutrition.json` (exclu de git).
+
 ## Contenu
+
+- `trailpace/nutrition.py` : calculs nutrition et hydratation
 
 - `trailpace/export.py` : exports PDF et GPX
 

@@ -30,6 +30,9 @@ th:first-child,td:first-child{text-align:left}th{color:var(--mute);font-weight:5
 .mute{color:var(--mute);font-size:13px}
 .good{color:var(--acc);font-weight:600}.bad{color:var(--warn);font-weight:600}
 .hide{display:none}
+table.edit input.tin,table.edit select.tin{width:100%;min-width:60px;font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+table.edit th,table.edit td{text-align:left;padding:3px 4px}table.edit td:nth-child(1) input{min-width:150px}
+.row2{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .exports{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
 .exports a.btn{text-decoration:none}
 .two2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
@@ -60,7 +63,7 @@ details summary{cursor:pointer;color:var(--acc);font-size:13.5px;margin:6px 0}
 <body>
 <header>
   <h1 id="title">Trailpace</h1>
-  <nav><button data-tab="data">Mes données</button><button data-tab="course" class="on">Parcours</button><button data-tab="profil">Profil coureur</button><button data-tab="plan">Plan de course</button></nav>
+  <nav><button data-tab="data">Mes données</button><button data-tab="course" class="on">Parcours</button><button data-tab="profil">Profil coureur</button><button data-tab="plan">Plan de course</button><button data-tab="nutrition">Nutrition</button></nav>
 </header>
 <main>
 <section id="data" class="hide">
@@ -106,6 +109,41 @@ details summary{cursor:pointer;color:var(--acc);font-size:13.5px;margin:6px 0}
   </div>
   <div id="plan_out"><p class="mute">Calcul…</p></div>
 </section>
+<section id="nutrition" class="hide">
+  <p class="mute">Calculateur général : les besoins se déduisent de la durée prévue, de l'intensité, de la météo et de ton profil. Repères glucides par durée : revue Morton et al. 2026 (J Nutr), d'après la vidéo Courir Mieux ; sudation : Baker 2016, Barnes 2019 ; hydratation : ACSM 2007 et consensus hyponatrémie 2015. Détail et statut des sources dans docs/nutrition_recherche.md.</p>
+  <div class="card"><h2>Mon profil nutrition</h2>
+    <div class="form">
+      <label>Poids (kg)<input type="number" id="n_weight" min="30" max="200" step="0.1"></label>
+      <label>Taille (cm)<input type="number" id="n_height" min="120" max="230"></label>
+      <label>Âge<input type="number" id="n_age" min="10" max="100"></label>
+      <label>Sexe (facultatif)<select id="n_sex" class="sel"><option value="">–</option><option value="f">Femme</option><option value="m">Homme</option></select></label>
+      <label>Glucides pris en sortie longue (g/h)<input type="number" id="n_habit" min="0" max="200" placeholder="ex. 40"></label>
+      <label>Troubles digestifs à l'effort<select id="n_gi" class="sel"><option value="none">Jamais ou rarement</option><option value="sometimes">Parfois</option><option value="often">Souvent</option></select></label>
+      <label>Caféine<select id="n_caf" class="sel"><option value="none">Aucune</option><option value="occasional">Occasionnelle</option><option value="regular">Régulière</option></select></label>
+      <label>Sodium de la sueur (mmol/L, si mesuré)<input type="number" id="n_na" min="5" max="120" placeholder="par défaut 36"></label>
+    </div>
+  </div>
+  <div class="card"><h2>Mes produits</h2>
+    <p class="mute">Entre tes produits réels (quantités par portion). Les lignes d'exemple sont génériques : remplace-les par les valeurs de tes emballages. « Part des glucides » = quelle proportion de tes glucides vient de ce produit.</p>
+    <table class="edit"><thead><tr><th>Nom</th><th>Type</th><th>Glucides (g)</th><th>Sodium (mg)</th><th>Volume (mL)</th><th>Fructose (% des glucides)</th><th>Part des glucides (%)</th><th></th></tr></thead><tbody id="n_products"></tbody></table>
+    <div class="row2"><button class="btn sec" id="n_add_prod" type="button">+ Ajouter un produit</button><button class="btn sec" id="n_reset_prod" type="button">Exemples génériques</button><span class="mute" id="n_sharetot"></span></div>
+  </div>
+  <div class="card"><h2>Mes tests de sudation</h2>
+    <p class="mute">Protocole : effort d'au moins 1 h à l'intensité visée ; pèse-toi avant et après avec le minimum de vêtements secs ; note le liquide bu (pèse les bidons) et les urines éventuelles. Sudation (L/h) = (poids avant − poids après + liquide bu − urines) ÷ durée. Répète dans des conditions différentes (idéalement une sortie par temps froid). La concentration de sodium de la sueur ne se mesure pas par pesée.</p>
+    <table class="edit"><thead><tr><th>Date</th><th>Durée (min)</th><th>Temp. (°C)</th><th>Poids avant (kg)</th><th>Poids après (kg)</th><th>Liquide bu (mL)</th><th>Urines (mL)</th><th>Puissance moy. (W)</th><th>Sudation</th><th></th></tr></thead><tbody id="n_tests"></tbody></table>
+    <div class="row2"><button class="btn sec" id="n_add_test" type="button">+ Ajouter un test</button></div>
+  </div>
+  <div class="row2" style="margin-bottom:12px"><button class="btn" id="n_save" type="button">Enregistrer mon profil nutrition</button><span id="n_msg"></span></div>
+  <div class="card"><h2>Bilan de l'athlète</h2><div id="n_bilan"><p class="mute">Chargement…</p></div></div>
+  <div class="card"><h2>Plan nutrition de la course</h2>
+    <div class="form">
+      <label>Glucides visés<span class="val" id="n_carb_v"></span><input type="range" id="n_carb" min="0" max="150" step="5" value="60"><small id="n_band"></small></label>
+      <label>Liquide (part de la sueur remplacée)<span class="val" id="n_fluid_v"></span><input type="range" id="n_fluid" min="30" max="100" step="5" value="70"></label>
+      <label>Sodium (part des pertes compensée)<span class="val" id="n_nasl_v"></span><input type="range" id="n_nasl" min="0" max="100" step="10" value="40"></label>
+    </div>
+    <div id="n_plan"><p class="mute">Calcul…</p></div>
+  </div>
+</section>
 </main>
 <script>
 const $=s=>document.querySelector(s);
@@ -119,9 +157,10 @@ function showTab(t){document.querySelector('nav button[data-tab='+t+']').click()
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   try{sessionStorage.setItem('tab',b.dataset.tab);}catch(e){}
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
-  ['data','course','profil','plan'].forEach(t=>$('#'+t).classList.toggle('hide',t!==b.dataset.tab));
+  ['data','course','profil','plan','nutrition'].forEach(t=>$('#'+t).classList.toggle('hide',t!==b.dataset.tab));
   window.dispatchEvent(new Event('resize'));
   setTimeout(()=>{document.querySelectorAll('#'+b.dataset.tab+' .js-plotly-plot').forEach(g=>Plotly.Plots.resize(g));
+    if(b.dataset.tab==='nutrition'&&window.loadNutritionPlan)window.loadNutritionPlan();
     if(b.dataset.tab==='course'&&window.__map){window.__map.invalidateSize();window.__map.fitBounds(window.__bounds);}},30);
 });
 
@@ -246,7 +285,7 @@ function renderPlan(p){
   const margins=p.sections.filter(s=>s.cutoff_margin_min!=null).map(s=>s.cutoff_margin_min);
   const marginKpi=margins.length?kp(fmt(Math.min(...margins)/60,1)+' h','Marge mini sur barrière'):kp('–','Marge sur barrière : aucune barrière saisie');
   let h=`<div class="grid">${kp(p.total,'Temps total (arrêts inclus)')}${kp(p.finish_clock,'Arrivée')}${kp(Math.round(p.pct*100)+' %','Effort moyen visé (CS)')}${p.power?kp(fmt(p.power.avg)+' W','Puissance moyenne · '+fmt(p.power.pct_cp)+' % de ta CP'):''}${kp(fmt(p.stops_s/60)+' min','Temps aux ravitos')}${marginKpi}</div>
-  <div class="exports"><span class="mute">Exporter le plan :</span><a class="btn sec" id="x_pdf" href="/api/plan/export/pdf?${planQuery()}" download>Fiche PDF</a><a class="btn sec" id="x_gpx" href="/api/plan/export/gpx?${planQuery()}" download>GPX avec temps de passage</a></div>${msg}
+  <div class="exports"><span class="mute">Exporter le plan :</span><a class="btn sec" id="x_pdf" href="/api/plan/export/pdf?${planQuery()}${window.nutQuery?window.nutQuery():''}" download>Fiche PDF</a><a class="btn sec" id="x_gpx" href="/api/plan/export/gpx?${planQuery()}${window.nutQuery?window.nutQuery():''}" download>GPX avec temps de passage</a></div>${msg}
   <div class="card"><h2>Allure et temps de passage</h2><div id="plan_chart" style="height:520px"></div></div>
   <div class="card"><h2>Plan par section</h2><table><tr><th>Section</th><th>Dist.</th><th>D+/D−</th><th>Temps</th><th>Allure</th><th>Passage</th><th>Heure</th><th>Arrêt</th><th>FC cible</th>${p.power?'<th>Puissance</th>':''}<th>Barrière (marge)</th><th>Météo</th></tr>`;
   p.sections.forEach(s=>{const pc=s.pace_min_km, pm=Math.floor(pc), ps=Math.round((pc-pm)*60);
@@ -339,5 +378,6 @@ async function loadAids(){
 loadAids(); poll();
 (function(){let t=null;try{t=sessionStorage.getItem('tab');}catch(e){} if(t&&t!=='course') showTab(t);})();
 </script>
+<script src="/static/nutrition.js"></script>
 </body>
 </html>

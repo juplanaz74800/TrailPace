@@ -119,8 +119,56 @@ class ProfileChart(Flowable):
                 c.line(X(km[j]), bottom - 2, X(km[j]), bottom + 2)
 
 
-def plan_pdf(plan):
-    """Fiche de course A4 paysage -> octets PDF."""
+def _nutrition_story(nut, doc_width, cell, small, h1, sub):
+    """Page de nutrition et hydratation de la fiche."""
+    from reportlab.platypus import PageBreak
+    t = nut["totals"]
+    sw = nut["sweat"]
+    story = [PageBreak(), Paragraph("Nutrition et hydratation", h1),
+             Paragraph(f"Durée estimée {_hm(nut['hours'])} - repère glucides {nut['band']['lo']}-{nut['band']['hi']} g/h ({_x(nut['band']['label'])})", sub),
+             Spacer(1, 3 * mm)]
+    kpis = [("Glucides visés", f"{nut['carb_g_h']:g} g/h"), ("Ratio glucose:fructose", nut["ratio"]["ratio"]),
+            ("Glucides au total", f"{t['carbs_g'] / 1000:.1f} kg" if t["carbs_g"] >= 1000 else f"{t['carbs_g']:.0f} g"),
+            ("Liquide au total", f"{t['fluid_ml'] / 1000:.1f} L"),
+            ("Sodium visé", f"{t['sodium_target_mg'] / 1000:.1f} g")]
+    kpi = ParagraphStyle("kpi2", parent=cell, leading=14)
+    row = [[Paragraph(f"<font size=6.5 color='#667085'>{_x(k)}</font><br/><b><font size=11>{_x(v)}</font></b>", kpi) for k, v in kpis]]
+    tb = Table(row, colWidths=[doc_width / len(kpis)] * len(kpis))
+    tb.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.5, LIGHT), ("INNERGRID", (0, 0), (-1, -1), 0.5, LIGHT),
+                            ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
+    story += [tb, Spacer(1, 3 * mm)]
+    data = [[Paragraph(f"<b>{h}</b>", cell) for h in ["Section", "Durée", "Glucides", "Produits", "Liquide (mL)", "dont boisson", "Sodium visé", "Sueur estimée"]]]
+    for s in nut["sections"]:
+        prods = ", ".join(f"{p['servings']:.1f} x {_x(p['name'])}" for p in s["products"] if p["servings"] >= 0.05)
+        if s.get("electrolyte_tabs"):
+            prods += (", " if prods else "") + f"{s['electrolyte_tabs']:.1f} x électrolytes"
+        frm = "Départ" if s["n"] == 1 else s["from"]
+        data.append([Paragraph(f"{_x(frm)} &gt; {_x(s['to'])}", cell), _hm(s["hours"]), f"{s['carbs_g']:.0f} g", Paragraph(prods or "-", cell),
+                     f"{s['fluid_ml']:.0f}", f"{s['drink_ml']:.0f}", f"{s['na_target_mg']:.0f} mg", f"{s['sweat_l_h']:.2f} L/h"])
+    colw = [70, 28, 30, 120, 36, 34, 40, 40]
+    scale = doc_width / sum(colw)
+    tbl = Table(data, colWidths=[w * scale for w in colw], repeatRows=1)
+    tbl.setStyle(TableStyle([("FONTSIZE", (0, 0), (-1, -1), 7.6), ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eef1f4")),
+                             ("LINEBELOW", (0, 0), (-1, -1), 0.4, LIGHT), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                             ("ALIGN", (1, 1), (-1, -1), "RIGHT"), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
+    story += [tbl, Spacer(1, 3 * mm)]
+    if t["products"]:
+        story.append(Paragraph("<b>À prévoir pour la course :</b> " + " ; ".join(f"{p['servings']:.0f} x {_x(p['name'])}" for p in t["products"]), cell))
+        story.append(Spacer(1, 2 * mm))
+    for w in nut["warnings"]:
+        story.append(Paragraph("- " + _x(w), small))
+    na = "valeur de population" if sw["na_default"] else "valeur saisie"
+    src = ("test de sudation de l'athlète" if sw["from_tests"] else "valeur de population (à confirmer par un test de sudation)")
+    story += [Spacer(1, 2 * mm), Paragraph(
+        f"Sudation de référence à 20 C : {sw['base_20c']:.2f} L/h ({src}) ; ajustée à la température de chaque section. Sodium de la sueur : {sw['na_mmol_l']:g} mmol/L ({na}). "
+        f"Liquide : {nut['fluid_pct']:g} % de la sueur, plafonné à 800 mL/h, à adapter à la soif (ne jamais boire plus que la sueur). Sodium : {nut['na_pct']:g} % des pertes, "
+        f"compensation facultative (preuves limitées). Repères glucides par durée : Morton et al. 2026 (J Nutr), d'après la vidéo Courir Mieux ; sudation : Baker 2016, Barnes 2019 ; "
+        f"hydratation : ACSM 2007, consensus hyponatrémie 2015. Voir docs/nutrition_recherche.md.", small)]
+    return story
+
+
+def plan_pdf(plan, nut=None):
+    """Fiche de course A4 paysage -> octets PDF (page de nutrition en plus si `nut` est fourni)."""
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=landscape(A4), leftMargin=12 * mm, rightMargin=12 * mm, topMargin=10 * mm,
                             bottomMargin=10 * mm, title=f"Plan de course - {plan['course_name']}", author="Trailpace")
@@ -175,6 +223,8 @@ def plan_pdf(plan):
            f"Profil athlete : vitesse critique {plan['cs_kmh']:g} km/h equivalent plat. Meteo : {_x(plan.get('weather_source') or 'indisponible')}. "
            f"Allure = temps de deplacement, arrets exclus. Estimation a ajuster sur le terrain - genere par Trailpace.")
     story.append(Paragraph(hyp, small))
+    if nut:
+        story += _nutrition_story(nut, doc.width, cell, small, h1, sub)
     doc.build(story)
     return buf.getvalue()
 
@@ -185,7 +235,7 @@ def _utc(dt):
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def plan_gpx(plan):
+def plan_gpx(plan, nut=None):
     """Trace + ravitos avec heures de passage prévues -> texte GPX 1.1."""
     start = datetime.fromisoformat(plan["params"]["start"])
     pf = plan["profile"]
@@ -212,6 +262,11 @@ def plan_gpx(plan):
         desc += f" - section suivante : {_pace(nxt['pace_min_km'])}/km"
         if nxt.get("power_w"):
             desc += f", {nxt['power_w']:.0f} W"
+        if nut and i + 1 < len(nut["sections"]):
+            ns = nut["sections"][i + 1]
+            desc += f" - nutrition : {ns['carbs_g']:.0f} g de glucides, {ns['fluid_ml']:.0f} mL"
+            if ns.get("electrolyte_tabs"):
+                desc += f", {ns['electrolyte_tabs']:.1f} électrolytes"
         out.append(wpt(pf["lat"][j], pf["lon"][j], pf["ele"][j], s["arrival_s"], f"R{i + 1} {s['to']}", desc, "Restaurant"))
     last = plan["sections"][-1]
     out.append(wpt(pf["lat"][-1], pf["lon"][-1], pf["ele"][-1], plan["total_s"], "Arrivee",
