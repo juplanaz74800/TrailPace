@@ -46,6 +46,11 @@ Onglet « Nutrition » (calculateur général, valable pour toute course) :
 - **Plan par section** : glucides (g/h selon la durée : seuils de la revue Morton et al. 2026, d'après la vidéo Courir Mieux), ratio glucose:fructose conseillé selon la dose,
   quantités de produits, liquide (sudation estimée, jamais au-delà de la sueur) et sodium, avec avertissements ; inclus dans l'export PDF et GPX.
 
+**Catalogue des marques** (`trailpace/catalog.json`) : arborescence marque > catégorie > produit pour ajouter un produit en un clic (glucides, sodium, volume, ratio, caféine).
+Chaque produit porte le niveau de fiabilité de sa source (tableau lu, fiche produit, carte d'accueil, exemple générique) et un lien vers la page ; les valeurs non indiquées par la marque restent vides et sont surlignées pour être complétées.
+Relevé du 16/11/2026 : OVERSTIM.s, Meltonic, Maurten, Näak, 4Endurance, SiS, Precision Fuel & Hydration, plus des produits génériques. 226ERS et Neversecond n'ont pas pu être lus (limitation de débit, site inaccessible).
+Les compositions changent : vérifier toujours l'emballage.
+
 Sources et statut de chaque chiffre : `docs/nutrition_recherche.md`. Les données saisies sont dans `data/nutrition.json` (exclu de git).
 
 ## Contenu

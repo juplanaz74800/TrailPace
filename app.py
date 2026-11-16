@@ -111,6 +111,11 @@ def nutrition_profile():
     return nutrition.load_profile()
 
 
+@app.get("/api/nutrition/catalog")
+def nutrition_catalog():
+    return nutrition.load_catalog()
+
+
 @app.get("/api/nutrition/defaults")
 def nutrition_defaults():
     return {"products": nutrition.DEFAULT_PRODUCTS}

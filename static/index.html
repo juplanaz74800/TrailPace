@@ -30,6 +30,12 @@ th:first-child,td:first-child{text-align:left}th{color:var(--mute);font-weight:5
 .mute{color:var(--mute);font-size:13px}
 .good{color:var(--acc);font-weight:600}.bad{color:var(--warn);font-weight:600}
 .hide{display:none}
+.miss{border-color:var(--warn)!important;background:rgba(247,144,9,.14)!important}
+.catalog{margin:10px 0;border:1px solid var(--line);border-radius:8px;padding:6px 10px}.catalog>summary{font-weight:600}
+.tree details{margin:3px 0 3px 10px}.tree summary{cursor:pointer;font-size:13.5px}.tree .brand>summary{font-weight:600}
+.tree table{margin:4px 0 6px 6px;font-size:12.5px}.tree td,.tree th{padding:3px 6px}.tree td:last-child{text-align:right}
+.badge{font-size:11px;padding:1px 7px;border-radius:9px;border:1px solid var(--line);white-space:nowrap}
+.badge.t{color:var(--acc);border-color:var(--acc)}.badge.f,.badge.c{color:var(--warn);border-color:var(--warn)}
 table.edit input.tin,table.edit select.tin{width:100%;min-width:60px;font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
 table.edit th,table.edit td{text-align:left;padding:3px 4px}table.edit td:nth-child(1) input{min-width:150px}
 .row2{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
@@ -131,6 +137,10 @@ details summary{cursor:pointer;color:var(--acc);font-size:13.5px;margin:6px 0}
   <div class="card"><h2>Mes produits</h2>
     <p class="mute">Entre tes produits réels (quantités par portion). Les lignes d'exemple sont génériques : remplace-les par les valeurs de tes emballages. « Part des glucides » = quelle proportion de tes glucides vient de ce produit.</p>
     <table class="edit"><thead><tr><th>Nom</th><th>Type</th><th>Glucides (g)</th><th>Sodium (mg)</th><th>Volume (mL)</th><th>Fructose (% des glucides)</th><th>Part des glucides (%)</th><th></th></tr></thead><tbody id="n_products"></tbody></table>
+    <details id="n_cat" class="catalog"><summary>Ajouter depuis le catalogue des marques</summary>
+      <p class="mute" id="n_cat_note">Chargement du catalogue…</p>
+      <input type="search" id="n_cat_q" class="tin" placeholder="Rechercher un produit ou une marque (gel, Maurten, 2:1…)" style="width:100%;margin-bottom:6px">
+      <div id="n_cat_tree" class="tree"></div></details>
     <div class="row2"><button class="btn sec" id="n_add_prod" type="button">+ Ajouter un produit</button><button class="btn sec" id="n_reset_prod" type="button">Exemples génériques</button><span class="mute" id="n_sharetot"></span></div>
   </div>
   <div class="card"><h2>Mes tests de sudation</h2>

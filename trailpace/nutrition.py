@@ -27,6 +27,18 @@ DEFAULT_PROFILE = {"weight_kg": None, "height_cm": None, "age": None, "sex": Non
                    "gi": "none", "caffeine": "none", "sweat_na_mmol_l": None, "products": DEFAULT_PRODUCTS, "tests": []}
 
 
+_catalog = None
+
+
+def load_catalog():
+    """Catalogue des produits des marques (relevé du 16/11/2026), avec niveau de fiabilité de chaque source."""
+    global _catalog
+    if _catalog is None:
+        with open(os.path.join(os.path.dirname(__file__), "catalog.json"), encoding="utf-8") as f:
+            _catalog = json.load(f)
+    return _catalog
+
+
 # ------------------------------------------------------------------ persistance
 def load_profile():
     p = json.loads(json.dumps(DEFAULT_PROFILE))

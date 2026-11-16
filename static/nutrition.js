@@ -25,7 +25,7 @@
     prof.tests.forEach(addTestRow);
     shareTotal();
   }
-  function addProductRow(p = { name: '', type: 'gel', carbs_g: 25, sodium_mg: 0, volume_ml: 0, fructose_pct: 0, share_pct: 0 }) {
+  function addProductRow(p = { name: '', type: 'gel', carbs_g: 25, sodium_mg: 0, volume_ml: 0, fructose_pct: 0, share_pct: 0 }, meta = null) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td><input class="tin p_name" value="${esc(p.name)}"></td>
       <td><select class="tin p_type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}"${k === p.type ? ' selected' : ''}>${v}</option>`).join('')}</select></td>
@@ -34,7 +34,14 @@
       <td><input class="tin p_share" type="number" min="0" max="100" value="${p.share_pct}"></td><td><button class="btn danger" type="button">✕</button></td>`;
     tr.querySelector('button').onclick = () => { tr.remove(); shareTotal(); };
     tr.querySelector('.p_share').oninput = shareTotal;
+    if (meta) {
+      const nm = tr.querySelector('.p_name');
+      nm.title = (meta.note ? meta.note + '\n' : '') + (meta.source ? 'Source : ' + meta.source : '');
+      const map = { carbs: '.p_carbs', sodium: '.p_na', volume: '.p_vol' };
+      meta.missing.forEach(k => { const i = tr.querySelector(map[k]); if (i) { i.classList.add('miss'); i.title = 'Non indiqué par la marque : à compléter avec ton emballage'; i.addEventListener('input', () => i.classList.remove('miss')); } });
+    }
     $('#n_products').appendChild(tr);
+    return tr;
   }
   function shareTotal() {
     const t = [...document.querySelectorAll('.p_share')].reduce((a, i) => a + Number(i.value || 0), 0);
@@ -153,11 +160,80 @@
     $('#n_plan').innerHTML = h;
   }
 
+
+  // ---------------------------------------------------------------- catalogue des marques (arborescence)
+  const CAT_LABEL = { drink: 'Boissons', gel: 'Gels', chew: 'Gommes et pâtes', bar: 'Barres', electrolyte: 'Électrolytes', real: 'Purées et aliments' };
+  const CAT_ORDER = ['gel', 'drink', 'chew', 'bar', 'electrolyte', 'real'];
+  const CONF = { tableau: ['tableau lu', 't'], fiche: ['fiche produit', 'f'], carte: ['carte d\'accueil', 'c'], generique: ['exemple', ''] };
+  let catalog = null;
+
+  function missingOf(p) {
+    const m = [];
+    if (p.carbs_g == null) m.push('carbs');
+    if (p.sodium_mg == null) m.push('sodium');
+    if (p.type === 'drink' && !p.volume_ml) m.push('volume');
+    return m;
+  }
+  function addFromCatalog(p) {
+    const row = {
+      name: p.brand === 'Génériques' ? p.name : `${p.brand} – ${p.name}`, type: p.category, carbs_g: p.carbs_g ?? 0, sodium_mg: p.sodium_mg ?? 0,
+      volume_ml: p.volume_ml ?? 0, fructose_pct: p.fructose_pct ?? 0, share_pct: 0,
+    };
+    const m = missingOf({ ...p, type: p.category });
+    const tr = addProductRow(row, { missing: m, note: p.note, source: p.source });
+    shareTotal();
+    const names = { carbs: 'glucides', sodium: 'sodium', volume: 'volume d\'eau' };
+    say('#n_msg', `« ${row.name} » ajouté. ` + (m.length ? `À compléter (cases orange) : ${m.map(k => names[k]).join(', ')}. ` : '') + 'Pense à définir sa part des glucides, puis enregistre.', !m.length);
+    tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+  function renderCatalog() {
+    const q = $('#n_cat_q').value.trim().toLowerCase();
+    const tree = $('#n_cat_tree'); tree.innerHTML = '';
+    const byBrand = {};
+    catalog.products.forEach(p => { if (!q || (p.brand + ' ' + p.name + ' ' + (p.serving || '') + ' ' + p.category).toLowerCase().includes(q)) (byBrand[p.brand] = byBrand[p.brand] || []).push(p); });
+    const brands = Object.keys(catalog.brands).filter(b => byBrand[b] || (!q && catalog.brands[b]));
+    brands.forEach(b => {
+      const list = byBrand[b] || [], info = catalog.brands[b] || {};
+      const d = document.createElement('details'); d.className = 'brand'; d.open = !!q;
+      d.innerHTML = `<summary>${esc(b)} <span class="mute">(${list.length} produit${list.length > 1 ? 's' : ''})</span></summary>
+        <p class="mute" style="margin:2px 0 2px 10px">${esc(info.coverage || '')}${info.site ? ` <a href="${esc(info.site)}" target="_blank" rel="noopener">site</a>` : ''}</p>`;
+      CAT_ORDER.forEach(c => {
+        const items = list.filter(p => p.category === c);
+        if (!items.length) return;
+        const sd = document.createElement('details'); sd.open = !!q;
+        sd.innerHTML = `<summary>${CAT_LABEL[c]} <span class="mute">(${items.length})</span></summary>`;
+        const tb = document.createElement('table');
+        tb.innerHTML = '<tr><th>Produit</th><th>Portion</th><th>Glucides</th><th>Sodium</th><th>Source</th><th></th></tr>';
+        items.forEach(p => {
+          const tr = document.createElement('tr'); const cf = CONF[p.confidence] || ['', ''];
+          tr.innerHTML = `<td title="${esc(p.note || '')}">${esc(p.name)}${p.caffeine_mg ? ` <span class="mute">· ${p.caffeine_mg} mg caféine</span>` : ''}</td><td>${esc(p.serving || '')}</td>
+            <td>${p.carbs_g != null ? fr(p.carbs_g, p.carbs_g % 1 ? 1 : 0) + ' g' : '<span class="err">?</span>'}</td><td>${p.sodium_mg != null ? fr(p.sodium_mg) + ' mg' : '<span class="err">?</span>'}</td>
+            <td><span class="badge ${cf[1]}">${cf[0]}</span>${p.source ? ` <a href="${esc(p.source)}" target="_blank" rel="noopener">↗</a>` : ''}</td><td><button class="btn sec" type="button">+ Ajouter</button></td>`;
+          tr.querySelector('button').onclick = () => addFromCatalog(p);
+          tb.appendChild(tr);
+        });
+        sd.appendChild(tb); d.appendChild(sd);
+      });
+      tree.appendChild(d);
+    });
+    if (!tree.children.length) tree.innerHTML = '<p class="mute">Aucun produit trouvé.</p>';
+  }
+  async function openCatalog() {
+    if (catalog) return;
+    try {
+      catalog = await api('/api/nutrition/catalog');
+      $('#n_cat_note').textContent = catalog.note;
+      renderCatalog();
+    } catch (e) { $('#n_cat_note').textContent = 'Catalogue indisponible : ' + e; }
+  }
+
   function schedule() { clearTimeout(timer); timer = setTimeout(loadPlan, 300); }
 
   function init() {
     if (!$('#nutrition')) return;
     $('#n_add_prod').onclick = () => addProductRow();
+    $('#n_cat').addEventListener('toggle', () => { if ($('#n_cat').open) openCatalog(); });
+    $('#n_cat_q').oninput = () => { if (catalog) renderCatalog(); };
     $('#n_add_test').onclick = () => addTestRow({ date: new Date().toISOString().slice(0, 10), duration_min: 60, mass_before_kg: prof && prof.weight_kg || '', fluid_ml: 0, urine_ml: 0 });
     $('#n_save').onclick = save;
     $('#n_reset_prod').onclick = async () => {
