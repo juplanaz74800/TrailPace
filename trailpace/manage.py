@@ -177,8 +177,9 @@ def set_aids(aids):
             km = float(a["km"])
         except (KeyError, TypeError, ValueError):
             raise UploadError("Chaque ravito doit avoir une distance (km).")
-        if not 0 < km < 1000:
-            raise UploadError("Distance de ravito invalide.")
+        total = _course_summary()["total_km"]
+        if not 0.2 < km < total - 0.5:
+            raise UploadError(f"Ravito à {km:g} km : il doit être entre 0,2 et {total - 0.5:.1f} km (la trace fait {total:.1f} km).")
         clean.append({"name": str(a.get("name") or "Ravitaillement")[:60], "km": km, "cutoff": str(a.get("cutoff") or "")[:12]})
     with open(store.AIDS, "w", encoding="utf-8") as f:
         json.dump(clean, f, ensure_ascii=False)
