@@ -43,16 +43,44 @@ def _parse_cutoff(txt):
     return int(h) * 3600 + (int(m) * 60 if m.strip() else 0)
 
 
+DEFAULT_DRIFT = 1.5     # %/h, valeur de repli quand le profil n'a pas de mesure fiable
+
+
+def resolve_drift(pr, manual=None, source=None):
+    """Dérive d'efficience (%/h de vitesse perdue à effort égal, après la 1re heure) du plan.
+
+    Priorité : valeur saisie par l'utilisateur > dérive mesurée sur son profil (pente de Theil-Sen, sorties longues)
+    > valeur par défaut. Par défaut (source non précisée), la mesure n'est utilisée que si elle est fiable :
+    intervalle de confiance entièrement du côté de la dérive et au moins 20 blocs de données."""
+    d = pr.get("durability") or {}
+    meas = d.get("pooled_pct_per_h")
+    info = {"measured": None, "reliable": False}
+    if meas is not None:
+        lo, hi, nb = d.get("pooled_lo"), d.get("pooled_hi"), d.get("pooled_blocks") or 0
+        info["measured"] = {"pct_per_h": max(0.0, min(8.0, -meas)), "raw": meas, "ci_lo": lo, "ci_hi": hi, "blocks": nb, "runs": d.get("n")}
+        info["reliable"] = bool(hi is not None and hi < 0 and nb >= 20)
+    if manual is not None:
+        info.update(used=float(manual), source="manuelle")
+    elif source == "measured" and info["measured"]:
+        info.update(used=info["measured"]["pct_per_h"], source="mesurée")
+    elif source is None and info["reliable"]:
+        info.update(used=info["measured"]["pct_per_h"], source="mesurée")
+    else:
+        info.update(used=DEFAULT_DRIFT, source="défaut")
+    return info
+
+
 def plan_json(q):
     """q : dict de paramètres (valeurs absentes = défauts)."""
     r = _course_full()
     pr = profile_json()
     table = PL.SpeedTable(pr["grade_profile"], pr["cs_kmh"], pr.get("cp_w"))
     start = datetime.fromisoformat(q.get("start") or START_DEFAULT)
+    drift_info = resolve_drift(pr, q.get("drift"), q.get("drift_src"))
     n_aid = len(r["aid_km"])
     stops = (list(q.get("stops_min") or []) + [3.0] * n_aid)[:n_aid]
     params = {"pct": None, "aggr": q.get("aggr", 0.0), "climb": q.get("climb", 0.0), "descent": q.get("descent", 0.0),
-              "drift_pct_h": q.get("drift", 1.5), "tech_sens": q.get("tech_sens", 1.0),
+              "drift_pct_h": drift_info["used"], "tech_sens": q.get("tech_sens", 1.0),
               "night_pen_pct": q.get("night", 4.0), "heat_sens_pct": q.get("heat", 0.4),
               "alt_sens": q.get("alt_sens", 1.0), "stops_min": stops, "start": start}
 
@@ -159,6 +187,7 @@ def plan_json(q):
         power["pct_cp"] = power["avg"] / table.cp * 100
     return {
         "course_name": r.get("name", "Parcours").replace("�", "é"),
+        "drift_info": drift_info,
         "power": power,
         "params": {**{kk: vv for kk, vv in params.items() if kk != "start"}, "start": start.isoformat()},
         "recommended_pct": rec, "solved_pct": solved, "pct": pct,

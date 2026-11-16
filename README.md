@@ -20,6 +20,13 @@ les doublons FIT/TCX/GPX d'une même sortie sont ignorés, et la lecture se fait
 Exemple : 5 050 fichiers → 436 retenus, profil calculé en environ 30 s.
 Les records (CS/CP) exigent un effort réel (FC moyenne ≥ 70 % de la FCmax) en terrain plat ou montant.
 
+## Dérive de fatigue (durabilité)
+
+La dérive d'efficience (vitesse perdue à effort égal, par heure après la 1re heure) est propre à chaque profil : mesurée sur les sorties longues
+(pente de Theil-Sen de l'efficience vitesse/FC, terrain modéré uniquement). Dans « Plan de course > Hypothèses », l'utilisateur choisit
+**sa dérive mesurée** ou une **valeur manuelle**. Par défaut, la mesure n'est reprise que si elle est fiable (intervalle de confiance entièrement du côté de la dérive,
+au moins 20 blocs de données) ; sinon la valeur par défaut est de 1,5 %/h. La source est rappelée dans le PDF.
+
 ## Puissance et exports
 
 Si les sorties contiennent de la puissance, le plan donne aussi une **puissance cible** par section (W et % de la CP),

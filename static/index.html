@@ -34,6 +34,8 @@ table.edit input.tin,table.edit select.tin{width:100%;min-width:60px;font:inheri
 table.edit th,table.edit td{text-align:left;padding:3px 4px}table.edit td:nth-child(1) input{min-width:150px}
 .row2{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
 .exports{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 12px}
+.form .fld{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--mute)}
+.radios{display:flex;gap:16px;flex-wrap:wrap;color:var(--ink)}.radios label.inl{display:inline;flex-direction:row;color:var(--ink)}.radios input{vertical-align:middle}
 .exports a.btn{text-decoration:none}
 .two2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
 .drop{border:2px dashed var(--line);border-radius:12px;padding:22px 16px;text-align:center;transition:.15s;line-height:1.6}
@@ -98,7 +100,10 @@ details summary{cursor:pointer;color:var(--acc);font-size:13.5px;margin:6px 0}
     </div>
     <details><summary>Hypothèses du modèle (réglables)</summary>
     <div class="form">
-      <label>Dérive de fatigue (%/h après la 1re heure)<span class="val" id="v_drift"></span><input type="range" id="p_drift" min="0" max="4" step="0.25" value="1.5"></label>
+      <div class="fld">Dérive de fatigue (%/h de vitesse perdue après la 1re heure)<span class="val" id="v_drift"></span>
+        <span class="radios"><span><input type="radio" name="dmode" value="measured" id="dm_meas"> <label for="dm_meas" class="inl">Ma dérive mesurée : <b id="d_meas">–</b></label></span>
+        <span><input type="radio" name="dmode" value="manual" id="dm_man"> <label for="dm_man" class="inl">Valeur manuelle</label></span></span>
+        <input type="range" id="p_drift" min="0" max="6" step="0.25" value="1.5"><small id="d_note"></small></div>
       <label>Sensibilité à la technicité<span class="val" id="v_tech"></span><input type="range" id="p_tech" min="0" max="2" step="0.1" value="1"></label>
       <label>Ralentissement la nuit (pic vers 4h30)<span class="val" id="v_night"></span><input type="range" id="p_night" min="0" max="10" step="0.5" value="4"></label>
       <label>Ralentissement par °C au-dessus de 8 °C<span class="val" id="v_heat"></span><input type="range" id="p_heat" min="0" max="1" step="0.05" value="0.4"></label>
@@ -251,6 +256,7 @@ const sliders={aggr:['p_aggr','v_aggr',v=>v>0?'progressif '+v+' %':v<0?'rapide '
   heat:['p_heat','v_heat',v=>v+' %/°C'],alt_sens:['p_alt','v_alt',v=>'×'+v]};
 function readNum(k){const [id]=sliders[k];return Number($('#'+id).value);}
 function refreshLabels(){for(const k in sliders){const [id,vl,f]=sliders[k];$('#'+vl).textContent=f(Number($('#'+id).value));}
+  if($('#dm_meas').checked&&window.__measDrift!=null) $('#v_drift').textContent=fmt(window.__measDrift,1)+' %/h';
   $('#v_pct').textContent=$('#p_pct').value+' %';}
 function parseTarget(){const m=$('#p_target').value.trim().match(/^(\d{1,2})(?::|h)?(\d{0,2})$/);return m?Number(m[1])+Number(m[2]||0)/60:null;}
 function planQuery(){
@@ -259,7 +265,9 @@ function planQuery(){
   const tgt=parseTarget();
   if(tgt) q.set('target_h',tgt); else if(!pctAuto) q.set('pct',Number($('#p_pct').value)/100);
   q.set('aggr',readNum('aggr')/100);q.set('climb',readNum('climb')/100);q.set('descent',readNum('descent')/100);
-  q.set('drift',readNum('drift'));q.set('tech_sens',readNum('tech_sens'));q.set('night',readNum('night'));
+  const dm=document.querySelector('input[name=dmode]:checked');
+  if(dm&&dm.value==='manual') q.set('drift',readNum('drift')); else if(dm) q.set('drift_src','measured');
+  q.set('tech_sens',readNum('tech_sens'));q.set('night',readNum('night'));
   q.set('heat',readNum('heat'));q.set('alt_sens',readNum('alt_sens'));
   const st=[...document.querySelectorAll('.stopin')].map(i=>Number(i.value||0));
   if(st.length) q.set('stops',st.join(','));
@@ -269,7 +277,22 @@ function schedulePlan(){refreshLabels();clearTimeout(timer);timer=setTimeout(loa
 async function loadPlan(){
   try{renderPlan(await J('/api/plan?'+planQuery()));}catch(e){missing('#plan_out',e);}
 }
+let driftInit=false;
+function syncDrift(p){
+  const di=p.drift_info, m=di.measured;
+  window.__measDrift=m?m.pct_per_h:null;
+  $('#d_meas').textContent=m?`${fmt(m.pct_per_h,1)} %/h`:'non disponible';
+  $('#dm_meas').disabled=!m;
+  if(!driftInit){driftInit=true;
+    if(di.source==='mesurée') $('#dm_meas').checked=true; else {$('#dm_man').checked=true;$('#p_drift').value=di.used;}}
+  const measured=$('#dm_meas').checked&&!!m;
+  if(measured) $('#p_drift').value=m.pct_per_h;
+  $('#p_drift').disabled=measured;
+  $('#d_note').textContent=m?`Mesurée sur ${m.runs} sorties longues (${m.blocks} blocs) : efficience ${fmt(m.raw,1)} %/h, intervalle ${fmt(m.ci_lo,1)} à ${fmt(m.ci_hi,1)}. `+(di.reliable?'Mesure fiable.':'Mesure peu fiable (intervalle proche de zéro ou peu de données) : préfère une valeur manuelle ou la valeur par défaut (1,5 %/h).'):'Pas de mesure dans le profil : valeur par défaut 1,5 %/h, modifiable.';
+  refreshLabels();
+}
 function renderPlan(p){
+  syncDrift(p);
   if(!parseTarget()&&pctAuto) $('#p_pct').value=Math.round(p.pct*100);
   if(parseTarget()) $('#p_pct').value=Math.round(p.pct*100);
   $('#rec_note').textContent=`Recommandé pour ~${fmt(p.total_s/3600,1)} h : ${Math.round(p.recommended_pct*100)} % de CS (heuristique à calibrer). Ton allure d'entraînement de référence ≈ ${Math.round(p.pct_ref*100)} %.`;
@@ -298,6 +321,7 @@ function renderPlan(p){
 }
 
 for(const k in sliders){$('#'+sliders[k][0]).oninput=schedulePlan;}
+document.querySelectorAll('input[name=dmode]').forEach(r=>r.onchange=schedulePlan);
 $('#p_pct').oninput=()=>{pctAuto=false;$('#p_target').value='';schedulePlan();};
 $('#p_target').oninput=schedulePlan; $('#p_start').onchange=schedulePlan;
 refreshLabels(); loadPlan();

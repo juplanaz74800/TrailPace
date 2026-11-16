@@ -218,7 +218,9 @@ def plan_pdf(plan, nut=None):
     story += [tbl, Spacer(1, 3 * mm)]
 
     p = plan["params"]
-    hyp = (f"Hypotheses : derive de fatigue {p['drift_pct_h']:g} %/h apres la 1re heure ; ralentissement de nuit {p['night_pen_pct']:g} % (pic 4h30) ; "
+    di = plan.get("drift_info") or {}
+    src = {"mesurée": "mesuree sur le profil", "manuelle": "saisie", "défaut": "valeur par defaut"}.get(di.get("source"), "")
+    hyp = (f"Hypotheses : derive de fatigue {p['drift_pct_h']:.1f} %/h apres la 1re heure ({src}) ;ralentissement de nuit {p['night_pen_pct']:g} % (pic 4h30) ; "
            f"chaleur {p['heat_sens_pct']:g} %/C au-dessus de 8 C ; technicite x{p['tech_sens']:g} ; altitude x{p['alt_sens']:g}. "
            f"Profil athlete : vitesse critique {plan['cs_kmh']:g} km/h equivalent plat. Meteo : {_x(plan.get('weather_source') or 'indisponible')}. "
            f"Allure = temps de deplacement, arrets exclus. Estimation a ajuster sur le terrain - genere par Trailpace.")

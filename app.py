@@ -64,7 +64,7 @@ def profile():
 
 
 def _plan_query(start: str = None, pct: float = None, target_h: float = None, aggr: float = 0.0, climb: float = 0.0,
-                descent: float = 0.0, drift: float = 1.5, tech_sens: float = 1.0, night: float = 4.0, heat: float = 0.4,
+                descent: float = 0.0, drift: float = None, drift_src: str = None, tech_sens: float = 1.0, night: float = 4.0, heat: float = 0.4,
                 alt_sens: float = 1.0, stops: str = None):
     """Paramètres du plan (communs à l'affichage et aux exports)."""
     if not os.path.exists(store.GPX):
@@ -76,7 +76,7 @@ def _plan_query(start: str = None, pct: float = None, target_h: float = None, ag
     except ValueError:
         raise HTTPException(400, "Temps d'arrêt invalides.")
     return {"start": start, "pct": pct, "target_h": target_h, "aggr": aggr, "climb": climb, "descent": descent,
-            "drift": drift, "tech_sens": tech_sens, "night": night, "heat": heat, "alt_sens": alt_sens,
+            "drift": drift, "drift_src": drift_src, "tech_sens": tech_sens, "night": night, "heat": heat, "alt_sens": alt_sens,
             "stops_min": stops_min}
 
 
