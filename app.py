@@ -116,6 +116,22 @@ def nutrition_catalog():
     return nutrition.load_catalog()
 
 
+@app.post("/api/nutrition/catalog")
+def upload_catalog(file: UploadFile = File(...)):
+    """Remplace le catalogue par le CSV de l'utilisateur (enregistré dans data/catalog.csv)."""
+    try:
+        n, ignored = nutrition.save_catalog_csv(file.file.read(2 * 1024 * 1024 + 1))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"products": n, "ignored_lines": ignored}
+
+
+@app.delete("/api/nutrition/catalog")
+def reset_catalog():
+    nutrition.reset_catalog()
+    return nutrition.load_catalog()["file"]
+
+
 @app.get("/api/nutrition/defaults")
 def nutrition_defaults():
     return {"products": nutrition.DEFAULT_PRODUCTS}

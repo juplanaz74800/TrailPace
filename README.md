@@ -46,9 +46,12 @@ Onglet « Nutrition » (calculateur général, valable pour toute course) :
 - **Plan par section** : glucides (g/h selon la durée : seuils de la revue Morton et al. 2026, d'après la vidéo Courir Mieux), ratio glucose:fructose conseillé selon la dose,
   quantités de produits, liquide (sudation estimée, jamais au-delà de la sueur) et sodium, avec avertissements ; inclus dans l'export PDF et GPX.
 
-**Catalogue des marques** (`trailpace/catalog.json`) : arborescence marque > catégorie > produit pour ajouter un produit en un clic (glucides, sodium, volume, ratio, caféine).
-Chaque produit porte le niveau de fiabilité de sa source (tableau lu, fiche produit, carte d'accueil, exemple générique) et un lien vers la page ; les valeurs non indiquées par la marque restent vides et sont surlignées pour être complétées.
-Relevé du 16/11/2026 : OVERSTIM.s, Meltonic, Maurten, Näak, 4Endurance, SiS, Precision Fuel & Hydration, plus des produits génériques. 226ERS et Neversecond n'ont pas pu être lus (limitation de débit, site inaccessible).
+**Catalogue des produits** (`trailpace/catalog.csv`, fichier de l'utilisateur) : arborescence marque > catégorie > produit, avec recherche et filtre par gamme, pour ajouter un produit en un clic.
+Le bouton « Importer mon CSV » remplace le fichier fourni par le sien (enregistré dans `data/catalog.csv`, séparateur `,` ou `;`, virgules décimales acceptées) ; « Fichier fourni » rétablit le fichier d'origine.
+Colonnes obligatoires : `marque`, `type_produit` (Boisson, Gel, Barre, Gomme, Électrolyte, Purée), `nom_produit`, `glucides_g`, `sodium_mg`. Facultatives : `id`, `pays`, `gamme`, `portion_g_ml`, `unite`, `dilution_ml`,
+`energie_kcal`, `dont_sucres_g`, `proteines_g`, `ratio_glu_fru` (un ratio chiffré glucose:fructose comme `2:1` ou `1:0.8` donne la part de fructose), `sources_glucides`, `caffeine_mg`, `source_url`, `date_releve`, `statut` (« vérifié »).
+Les valeurs absentes ou non chiffrées sont surlignées à l'ajout pour être complétées avec l'emballage. `trailpace/catalog_ecarts.json` signale les écarts relevés sur les sites des marques le 16/11/2026
+(relevé complet conservé dans `docs/releve_marques_2026-11-16.json` : tableaux lus pour Overstims et Meltonic, fiches ou cartes pour les autres).
 Les compositions changent : vérifier toujours l'emballage.
 
 Sources et statut de chaque chiffre : `docs/nutrition_recherche.md`. Les données saisies sont dans `data/nutrition.json` (exclu de git).

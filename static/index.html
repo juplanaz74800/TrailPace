@@ -139,7 +139,9 @@ details summary{cursor:pointer;color:var(--acc);font-size:13.5px;margin:6px 0}
     <table class="edit"><thead><tr><th>Nom</th><th>Type</th><th>Glucides (g)</th><th>Sodium (mg)</th><th>Volume (mL)</th><th>Fructose (% des glucides)</th><th>Part des glucides (%)</th><th></th></tr></thead><tbody id="n_products"></tbody></table>
     <details id="n_cat" class="catalog"><summary>Ajouter depuis le catalogue des marques</summary>
       <p class="mute" id="n_cat_note">Chargement du catalogue…</p>
-      <input type="search" id="n_cat_q" class="tin" placeholder="Rechercher un produit ou une marque (gel, Maurten, 2:1…)" style="width:100%;margin-bottom:6px">
+      <div class="row2" style="margin:0 0 6px"><input type="search" id="n_cat_q" class="tin" placeholder="Rechercher (gel, Maurten, 2:1…)" style="flex:1;min-width:200px">
+        <select id="n_cat_gamme" class="sel"><option value="">Toutes les gammes</option></select>
+        <label class="btn sec">Importer mon CSV<input type="file" id="n_cat_file" accept=".csv,text/csv" hidden></label><button class="btn sec" id="n_cat_reset" type="button">Fichier fourni</button><span id="n_cat_msg"></span></div>
       <div id="n_cat_tree" class="tree"></div></details>
     <div class="row2"><button class="btn sec" id="n_add_prod" type="button">+ Ajouter un produit</button><button class="btn sec" id="n_reset_prod" type="button">Exemples génériques</button><span class="mute" id="n_sharetot"></span></div>
   </div>

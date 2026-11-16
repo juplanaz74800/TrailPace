@@ -37,8 +37,8 @@
     if (meta) {
       const nm = tr.querySelector('.p_name');
       nm.title = (meta.note ? meta.note + '\n' : '') + (meta.source ? 'Source : ' + meta.source : '');
-      const map = { carbs: '.p_carbs', sodium: '.p_na', volume: '.p_vol' };
-      meta.missing.forEach(k => { const i = tr.querySelector(map[k]); if (i) { i.classList.add('miss'); i.title = 'Non indiqué par la marque : à compléter avec ton emballage'; i.addEventListener('input', () => i.classList.remove('miss')); } });
+      const map = { carbs: '.p_carbs', sodium: '.p_na', volume: '.p_vol', fructose: '.p_fru' };
+      meta.missing.forEach(k => { const i = tr.querySelector(map[k]); if (i) { i.classList.add('miss'); i.title = k === 'fructose' ? 'Ratio glucose:fructose non chiffré dans la base : à renseigner (0 par défaut)' : 'Non indiqué : à compléter avec ton emballage'; i.addEventListener('input', () => i.classList.remove('miss')); } });
     }
     $('#n_products').appendChild(tr);
     return tr;
@@ -164,7 +164,7 @@
   // ---------------------------------------------------------------- catalogue des marques (arborescence)
   const CAT_LABEL = { drink: 'Boissons', gel: 'Gels', chew: 'Gommes et pâtes', bar: 'Barres', electrolyte: 'Électrolytes', real: 'Purées et aliments' };
   const CAT_ORDER = ['gel', 'drink', 'chew', 'bar', 'electrolyte', 'real'];
-  const CONF = { tableau: ['tableau lu', 't'], fiche: ['fiche produit', 'f'], carte: ['carte d\'accueil', 'c'], generique: ['exemple', ''] };
+  const CONF = { tableau: ['tableau lu', 't'], fiche: ['fiche produit', 'f'], carte: ['carte d\'accueil', 'c'], generique: ['exemple', ''], base_utilisateur: ['base utilisateur', 'c'], verifie: ['vérifié', 't'] };
   let catalog = null;
 
   function missingOf(p) {
@@ -172,6 +172,7 @@
     if (p.carbs_g == null) m.push('carbs');
     if (p.sodium_mg == null) m.push('sodium');
     if (p.type === 'drink' && !p.volume_ml) m.push('volume');
+    if (p.fructose_pct == null && ['drink', 'gel', 'chew', 'bar'].includes(p.type)) m.push('fructose');
     return m;
   }
   function addFromCatalog(p) {
@@ -182,7 +183,7 @@
     const m = missingOf({ ...p, type: p.category });
     const tr = addProductRow(row, { missing: m, note: p.note, source: p.source });
     shareTotal();
-    const names = { carbs: 'glucides', sodium: 'sodium', volume: 'volume d\'eau' };
+    const names = { carbs: 'glucides', sodium: 'sodium', volume: 'volume d\'eau', fructose: 'part de fructose' };
     say('#n_msg', `« ${row.name} » ajouté. ` + (m.length ? `À compléter (cases orange) : ${m.map(k => names[k]).join(', ')}. ` : '') + 'Pense à définir sa part des glucides, puis enregistre.', !m.length);
     tr.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
@@ -190,7 +191,8 @@
     const q = $('#n_cat_q').value.trim().toLowerCase();
     const tree = $('#n_cat_tree'); tree.innerHTML = '';
     const byBrand = {};
-    catalog.products.forEach(p => { if (!q || (p.brand + ' ' + p.name + ' ' + (p.serving || '') + ' ' + p.category).toLowerCase().includes(q)) (byBrand[p.brand] = byBrand[p.brand] || []).push(p); });
+    const gm = $('#n_cat_gamme') ? $('#n_cat_gamme').value : '';
+    catalog.products.forEach(p => { if (gm && p.gamme !== gm) return; if (!q || (p.brand + ' ' + p.name + ' ' + (p.serving || '') + ' ' + p.category + ' ' + (p.gamme || '') + ' ' + (p.ratio || '')).toLowerCase().includes(q)) (byBrand[p.brand] = byBrand[p.brand] || []).push(p); });
     const brands = Object.keys(catalog.brands).filter(b => byBrand[b] || (!q && catalog.brands[b]));
     brands.forEach(b => {
       const list = byBrand[b] || [], info = catalog.brands[b] || {};
@@ -203,11 +205,11 @@
         const sd = document.createElement('details'); sd.open = !!q;
         sd.innerHTML = `<summary>${CAT_LABEL[c]} <span class="mute">(${items.length})</span></summary>`;
         const tb = document.createElement('table');
-        tb.innerHTML = '<tr><th>Produit</th><th>Portion</th><th>Glucides</th><th>Sodium</th><th>Source</th><th></th></tr>';
+        tb.innerHTML = '<tr><th>Produit</th><th>Portion</th><th>Glucides</th><th>Sodium</th><th>Ratio</th><th>Source</th><th></th></tr>';
         items.forEach(p => {
           const tr = document.createElement('tr'); const cf = CONF[p.confidence] || ['', ''];
-          tr.innerHTML = `<td title="${esc(p.note || '')}">${esc(p.name)}${p.caffeine_mg ? ` <span class="mute">· ${p.caffeine_mg} mg caféine</span>` : ''}</td><td>${esc(p.serving || '')}</td>
-            <td>${p.carbs_g != null ? fr(p.carbs_g, p.carbs_g % 1 ? 1 : 0) + ' g' : '<span class="err">?</span>'}</td><td>${p.sodium_mg != null ? fr(p.sodium_mg) + ' mg' : '<span class="err">?</span>'}</td>
+          tr.innerHTML = `<td title="${esc(p.note || '')}">${esc(p.name)}${p.gamme ? ` <span class="mute">· ${esc(p.gamme)}</span>` : ''}${p.caffeine_mg ? ` <span class="mute">· ${p.caffeine_mg} mg caféine</span>` : ''}</td><td>${esc(p.serving || '')}</td>
+            <td>${p.carbs_g != null ? fr(p.carbs_g, p.carbs_g % 1 ? 1 : 0) + ' g' : '<span class="err">?</span>'}</td><td>${p.sodium_mg != null ? fr(p.sodium_mg) + ' mg' : '<span class="err">?</span>'}</td><td>${esc(p.ratio || '–')}</td>
             <td><span class="badge ${cf[1]}">${cf[0]}</span>${p.source ? ` <a href="${esc(p.source)}" target="_blank" rel="noopener">↗</a>` : ''}</td><td><button class="btn sec" type="button">+ Ajouter</button></td>`;
           tr.querySelector('button').onclick = () => addFromCatalog(p);
           tb.appendChild(tr);
@@ -222,7 +224,8 @@
     if (catalog) return;
     try {
       catalog = await api('/api/nutrition/catalog');
-      $('#n_cat_note').textContent = catalog.note;
+      $('#n_cat_note').textContent = catalog.note + ` Fichier utilisé : ${catalog.file} (${catalog.products.length} produits, ${Object.keys(catalog.brands).length} marques).`;
+      const sel = $('#n_cat_gamme'); sel.innerHTML = '<option value="">Toutes les gammes</option>' + catalog.gammes.map(g => `<option>${esc(g)}</option>`).join('');
       renderCatalog();
     } catch (e) { $('#n_cat_note').textContent = 'Catalogue indisponible : ' + e; }
   }
@@ -234,6 +237,15 @@
     $('#n_add_prod').onclick = () => addProductRow();
     $('#n_cat').addEventListener('toggle', () => { if ($('#n_cat').open) openCatalog(); });
     $('#n_cat_q').oninput = () => { if (catalog) renderCatalog(); };
+    $('#n_cat_gamme').onchange = () => { if (catalog) renderCatalog(); };
+    $('#n_cat_file').onchange = async () => {
+      const f = $('#n_cat_file').files[0]; if (!f) return;
+      const fd = new FormData(); fd.append('file', f);
+      try { const r = await api('/api/nutrition/catalog', { method: 'POST', body: fd }); catalog = null; await openCatalog(); say('#n_cat_msg', `${r.products} produits importés${r.ignored_lines ? ` (${r.ignored_lines} ligne(s) ignorée(s) : type de produit non reconnu)` : ''}.`, true); }
+      catch (e) { say('#n_cat_msg', String(e), false); }
+      $('#n_cat_file').value = '';
+    };
+    $('#n_cat_reset').onclick = async () => { await api('/api/nutrition/catalog', { method: 'DELETE' }); catalog = null; await openCatalog(); say('#n_cat_msg', 'Fichier fourni rétabli.', true); };
     $('#n_add_test').onclick = () => addTestRow({ date: new Date().toISOString().slice(0, 10), duration_min: 60, mass_before_kg: prof && prof.weight_kg || '', fluid_ml: 0, urine_ml: 0 });
     $('#n_save').onclick = save;
     $('#n_reset_prod').onclick = async () => {

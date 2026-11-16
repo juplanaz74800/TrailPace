@@ -3,10 +3,15 @@
 Sources : voir docs/nutrition_recherche.md. Seuils glucides par durée = revue Morton et al. 2026 (J Nutr), telle que présentée dans
 la vidéo « NUTRITION en TRAIL » ; sudation de population = Baker 2016 / Barnes 2019 ; hydratation = ACSM 2007, consensus EAH 2015.
 """
+import csv
+import io
 import json
 import math
 import os
+import re
 import statistics
+import unicodedata
+from datetime import datetime
 
 from . import store
 
@@ -27,16 +32,136 @@ DEFAULT_PROFILE = {"weight_kg": None, "height_cm": None, "age": None, "sex": Non
                    "gi": "none", "caffeine": "none", "sweat_na_mmol_l": None, "products": DEFAULT_PRODUCTS, "tests": []}
 
 
-_catalog = None
+# ------------------------------------------------------------------ catalogue des produits (fichier CSV de l'utilisateur)
+CATALOG_BUNDLED = os.path.join(os.path.dirname(__file__), "catalog.csv")
+CATALOG_USER = os.path.join(store.DATA, "catalog.csv")          # remplace le fichier fourni s'il existe
+CATALOG_ECARTS = os.path.join(os.path.dirname(__file__), "catalog_ecarts.json")
+_TYPES = {"boisson": "drink", "boissons": "drink", "gel": "gel", "gels": "gel", "barre": "bar", "barres": "bar", "gomme": "chew", "gommes": "chew",
+          "pate": "chew", "pates": "chew", "pate de fruit": "chew", "chews": "chew", "electrolyte": "electrolyte", "electrolytes": "electrolyte",
+          "puree": "real", "purees": "real", "aliment": "real", "solide": "real"}
+_cache = {}
+
+
+def _norm(s):
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode().lower()).strip()
+
+
+def _num_or_none(x):
+    x = str(x or "").strip().replace(",", ".")
+    try:
+        return float(x)
+    except ValueError:
+        return None
+
+
+def _fructose_pct(ratio):
+    """Part de fructose (%) déduite d'un ratio chiffré glucose:fructose (2:1, 1:0.8…) ; None si le ratio n'est pas chiffré."""
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*:\s*(\d+(?:[.,]\d+)?)", str(ratio or ""))
+    if not m:
+        return None
+    g, f = float(m.group(1).replace(",", ".")), float(m.group(2).replace(",", "."))
+    return round(100 * f / (g + f)) if g + f else None
+
+
+def parse_catalog_csv(text):
+    """Convertit le CSV en produits ; lève ValueError si les colonnes indispensables manquent.
+
+    Colonnes : marque, type_produit, nom_produit, glucides_g, sodium_mg (obligatoires) ; id, pays, gamme, portion_g_ml, unite, dilution_ml,
+    energie_kcal, dont_sucres_g, proteines_g, ratio_glu_fru, sources_glucides, caffeine_mg, source_url, date_releve, statut (facultatives)."""
+    first = text.splitlines()[0] if text.strip() else ""
+    delim = ";" if first.count(";") > first.count(",") else ","
+    rows = list(csv.DictReader(io.StringIO(text), delimiter=delim))
+    need = {"marque", "type_produit", "nom_produit", "glucides_g", "sodium_mg"}
+    if not rows or need - set(rows[0].keys()):
+        raise ValueError("Colonnes manquantes : " + ", ".join(sorted(need - set(rows[0].keys() if rows else [])) or ["fichier vide"]))
+    ecarts = {}
+    if os.path.exists(CATALOG_ECARTS):
+        with open(CATALOG_ECARTS, encoding="utf-8") as f:
+            ecarts = json.load(f)
+    products, ignored, seen = [], 0, {}
+    for r in rows:
+        name, brand = (r.get("nom_produit") or "").strip(), (r.get("marque") or "").strip()
+        cat = _TYPES.get(_norm(r.get("type_produit")))
+        if not name or not brand or cat is None:
+            ignored += 1
+            continue
+        qty, unit = (r.get("portion_g_ml") or "").strip(), (r.get("unite") or "g").strip()
+        vol = _num_or_none(r.get("dilution_ml"))
+        serving = f"{qty} {unit}".strip() + (f" dans {vol:g} mL" if cat in ("drink", "electrolyte") and vol else "")
+        pid = (r.get("id") or "").strip() or f"{_norm(brand)}-{_norm(name)}"
+        seen[pid] = seen.get(pid, 0) + 1
+        extras = []
+        if r.get("pays"):
+            extras.append(r["pays"].strip())
+        kcal, prot, sug = _num_or_none(r.get("energie_kcal")), _num_or_none(r.get("proteines_g")), _num_or_none(r.get("dont_sucres_g"))
+        if kcal is not None:
+            extras.append(f"{kcal:g} kcal")
+        if sug is not None:
+            extras.append(f"dont sucres {sug:g} g")
+        if prot:
+            extras.append(f"protéines {prot:g} g")
+        if r.get("sources_glucides"):
+            extras.append("glucides : " + r["sources_glucides"].strip())
+        ratio = (r.get("ratio_glu_fru") or "").strip()
+        if ratio and _fructose_pct(ratio) is None:
+            extras.append(f"ratio non chiffré (« {ratio} ») : part de fructose à renseigner")
+        note = " · ".join(extras)
+        if ecarts.get(pid):
+            note += ("\n" if note else "") + "Écart relevé : " + ecarts[pid]
+        stat = _norm(r.get("statut"))
+        products.append({
+            "id": pid if seen[pid] == 1 else f"{pid}-{seen[pid]}", "brand": brand, "gamme": (r.get("gamme") or "").strip(), "category": cat, "name": name,
+            "serving": serving, "carbs_g": _num_or_none(r.get("glucides_g")), "sodium_mg": _num_or_none(r.get("sodium_mg")),
+            "volume_ml": vol or 0, "fructose_pct": _fructose_pct(ratio), "ratio": ratio, "caffeine_mg": _num_or_none(r.get("caffeine_mg")),
+            "source": (r.get("source_url") or "").strip(), "confidence": "verifie" if stat.startswith("verifi") else "base_utilisateur",
+            "note": note, "date": (r.get("date_releve") or "").strip(), "country": (r.get("pays") or "").strip()})
+    return products, ignored
 
 
 def load_catalog():
-    """Catalogue des produits des marques (relevé du 16/11/2026), avec niveau de fiabilité de chaque source."""
-    global _catalog
-    if _catalog is None:
-        with open(os.path.join(os.path.dirname(__file__), "catalog.json"), encoding="utf-8") as f:
-            _catalog = json.load(f)
-    return _catalog
+    """Catalogue des produits : data/catalog.csv s'il existe (fichier de l'utilisateur), sinon le fichier fourni avec l'application."""
+    path = CATALOG_USER if os.path.exists(CATALOG_USER) else CATALOG_BUNDLED
+    mt = os.path.getmtime(path)
+    if _cache.get("key") == (path, mt):
+        return _cache["val"]
+    with open(path, encoding="utf-8-sig") as f:
+        products, ignored = parse_catalog_csv(f.read())
+    brands = {}
+    for p in products:
+        b = brands.setdefault(p["brand"], {"site": "", "country": p["country"], "n": 0})
+        b["n"] += 1
+    for b in brands.values():
+        b["coverage"] = f"{b['n']} produit(s) de la base" + (f" ({b['country']})" if b["country"] else "")
+    val = {"file": "data/catalog.csv" if path == CATALOG_USER else "fichier fourni (trailpace/catalog.csv)", "ignored_lines": ignored,
+           "retrieved": datetime.fromtimestamp(mt).strftime("%Y-%m-%d"),
+           "note": "Base de produits de l'utilisateur : valeurs non vérifiées sur emballage, sauf mention contraire. Les compositions changent : vérifie toujours l'emballage. "
+                   "Tu peux remplacer le fichier (bouton « Importer mon CSV »).",
+           "brands": dict(sorted(brands.items(), key=lambda kv: kv[0].lower())), "gammes": sorted({p["gamme"] for p in products if p["gamme"]}), "products": products}
+    _cache.update(key=(path, mt), val=val)
+    return val
+
+
+def save_catalog_csv(raw):
+    """Valide et enregistre un CSV de produits envoyé par l'utilisateur (octets) ; retourne le nombre de produits."""
+    if len(raw) > 2 * 1024 * 1024:
+        raise ValueError("Fichier trop volumineux (maximum 2 Mo).")
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("cp1252", "replace")
+    products, ignored = parse_catalog_csv(text)
+    if not products:
+        raise ValueError("Aucun produit exploitable (types reconnus : Boisson, Gel, Barre, Gomme, Électrolyte, Purée).")
+    os.makedirs(store.DATA, exist_ok=True)
+    with open(CATALOG_USER, "w", encoding="utf-8") as f:
+        f.write(text)
+    _cache.clear()
+    return len(products), ignored
+
+
+def reset_catalog():
+    store.remove(CATALOG_USER)
+    _cache.clear()
 
 
 # ------------------------------------------------------------------ persistance
